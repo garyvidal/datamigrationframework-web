@@ -1,3 +1,4 @@
+// ConnectionLineTypeControl — Portal dropdown for choosing the ReactFlow edge line style (Bezier, SmoothStep, Step, Straight, SimpleBezier).
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
 import * as ReactDOM from "react-dom";

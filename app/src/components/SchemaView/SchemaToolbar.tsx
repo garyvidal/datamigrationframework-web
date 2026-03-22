@@ -1,3 +1,4 @@
+// SchemaToolbar — Toolbar above the canvas: layout picker, edge-type picker, undo/redo, relational/document mode toggle, XML/JSON generate buttons, and settings.
 import * as React from 'react'
 import { FaCog, FaCode, FaMousePointer, FaProjectDiagram, FaRedo, FaUndo, FaLink, FaFileImage } from 'react-icons/fa';
 import { SiJson } from 'react-icons/si';
@@ -79,12 +80,12 @@ function SchemaToolbar({
             <FaLink size={11} />
           </button>
         )}
-        <button id="redo" className="p-1.5 bg-gray-200 rounded-none hover:bg-gray-300 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-600 dark:text-gray-300">
+        {/* <button id="redo" className="p-1.5 bg-gray-200 rounded-none hover:bg-gray-300 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-600 dark:text-gray-300">
           <FaRedo />
         </button>
         <button id="undo" className="p-1.5 bg-gray-200 rounded-none hover:bg-gray-300 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-600 dark:text-gray-300">
           <FaUndo />
-        </button>
+        </button> */}
       </div>
 
       {/* Right: print + settings */}
@@ -102,7 +103,7 @@ function SchemaToolbar({
           <button
             onClick={onGenerateXml}
             title="Generate XML documents from mapping"
-            className="p-1.5 bg-gray-200 rounded-none hover:bg-gray-300 text-emerald-700 hover:text-emerald-800 dark:bg-slate-800 dark:hover:bg-slate-600 dark:text-emerald-400 dark:hover:text-emerald-300"
+            className="p-1.5 bg-emerald-600 rounded-none hover:bg-gray-300 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-600 dark:text-gray-300 dark:hover:text-emerald-300"
           >
             <FaCode />
           </button>

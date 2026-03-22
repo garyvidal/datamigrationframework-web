@@ -1,3 +1,4 @@
+// SavedConnectionsList — Scrollable list of persisted DB connections with a delete button per entry.
 import React, { useEffect, useState } from 'react';
 import { getSavedConnections, deleteConnection, SavedConnection, DbConnection } from '@/services/SchemaService';
 import { FaTrash, FaSpinner, FaLink } from 'react-icons/fa';

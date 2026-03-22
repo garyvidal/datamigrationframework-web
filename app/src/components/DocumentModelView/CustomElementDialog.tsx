@@ -1,3 +1,4 @@
+// CustomElementDialog — Dialog for defining a custom XML element with an XSD type and one or more column/expression inputs.
 import React, { useState } from 'react';
 import { FaTimes, FaPlus, FaCode } from 'react-icons/fa';
 import type { ProjectMapping, XmlColumnMapping, XmlSchemaType } from '@/services/ProjectService';

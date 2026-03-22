@@ -1,3 +1,4 @@
+// TablesList — Simple list of database tables with loading/error states; emits a callback when the user selects a table.
 import React, { useEffect, useState } from 'react';
 import { fetchTables, Table } from '@/services/SchemaService';
 import { FaTable, FaSpinner } from 'react-icons/fa';

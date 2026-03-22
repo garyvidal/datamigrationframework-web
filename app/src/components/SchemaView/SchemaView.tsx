@@ -1,3 +1,4 @@
+// SchemaView — Main canvas: ReactFlow diagram with left/right collapsible panels, Dagre auto-layout, edge wiring, and project-sync debounce.
 import { ReactFlow, MiniMap, Background, Controls, useNodesState, useEdgesState, NodeTypes, useReactFlow, ConnectionLineType } from "@xyflow/react";
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import * as ReactDOM from "react-dom";

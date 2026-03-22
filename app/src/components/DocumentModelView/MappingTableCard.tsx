@@ -1,3 +1,4 @@
+// MappingTableCard — Card for mapping a DB table to XML elements; configures columns, attributes, and inline/child relationships with drag-reorder.
 import React, { useState, useRef, useCallback } from 'react';
 import { FaTimes, FaTag, FaLayerGroup, FaLink, FaGripVertical, FaChevronDown, FaChevronUp, FaPlus, FaDatabase } from 'react-icons/fa';
 import type { XmlTableMapping, XmlColumnMapping, XmlNamespace, ColumnMappingType, XmlSchemaType } from '@/services/ProjectService';
@@ -621,8 +622,8 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                                         title={col.mappingType === 'Element' ? 'Switch to ElementAttribute' : 'Switch to Element'}
                                         className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition border ${
                                             col.mappingType === 'Element'
-                                                ? 'border-slate-500 bg-slate-800 text-gray-300 hover:border-cyan-500'
-                                                : 'border-cyan-600 bg-cyan-900/40 text-cyan-300 hover:border-cyan-400'
+                                                ? 'border-gray-400 bg-gray-100 text-gray-700 hover:border-cyan-500 dark:border-slate-500 dark:bg-slate-800 dark:text-gray-300 dark:hover:border-cyan-500'
+                                                : 'border-cyan-500 bg-cyan-50 text-cyan-700 hover:border-cyan-600 dark:border-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-300 dark:hover:border-cyan-400'
                                         }`}
                                     >
                                         {col.mappingType === 'Element'
@@ -785,7 +786,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                         onClick={addCustomField}
                         onMouseDown={e => e.stopPropagation()}
                         title="Add a custom field not sourced from a DB column"
-                        className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-dashed border-slate-500 text-slate-300 hover:border-cyan-500 hover:text-cyan-300 hover:bg-cyan-900/20 transition"
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-dashed border-slate-400 text-slate-500 hover:border-cyan-500 hover:text-cyan-600 hover:bg-cyan-50 dark:border-slate-500 dark:text-slate-300 dark:hover:border-cyan-500 dark:hover:text-cyan-300 dark:hover:bg-cyan-900/20 transition"
                     >
                         <FaPlus size={8} />
                         <span>Add custom field</span>

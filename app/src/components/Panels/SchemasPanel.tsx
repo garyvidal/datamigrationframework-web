@@ -1,3 +1,4 @@
+// SchemasPanel — Left panel for ad-hoc DB exploration; browses connections, schemas, and tables outside of a project context.
 import React, { useState } from 'react';
 import {
   DbDatabase,

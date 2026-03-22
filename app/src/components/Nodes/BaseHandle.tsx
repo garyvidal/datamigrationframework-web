@@ -1,3 +1,4 @@
+// BaseHandle — Thin wrapper around ReactFlow Handle that forwards refs and supports extra className merging.
 import React from "react";
 import { Handle, HandleProps } from "@xyflow/react";
 import { cn } from "@/lib/Utils";

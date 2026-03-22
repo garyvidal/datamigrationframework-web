@@ -1,3 +1,4 @@
+// DatabaseConnectionForm — Form for entering DB connection details (type, host, port, database, credentials) with saved-connection quick-select.
 import React, { useState } from 'react';
 import { ConnectionType, DbConnection, encryptPassword, saveConnection } from '@/services/SchemaService';
 import { FaDatabase, FaEye, FaEyeSlash } from 'react-icons/fa';

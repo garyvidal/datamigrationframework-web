@@ -1,3 +1,4 @@
+// EnvironmentBadge — Color-coded badge displaying a connection's environment with an appropriate icon.
 import React from 'react';
 import {
   FaServer,

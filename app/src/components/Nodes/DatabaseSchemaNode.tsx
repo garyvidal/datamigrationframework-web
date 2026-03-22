@@ -1,3 +1,4 @@
+// DatabaseSchemaNode — ReactFlow node rendering a collapsible table card with column names, types, and PK indicators.
 import { Node, NodeProps, Position, Handle, useReactFlow } from "@xyflow/react";
 import * as React from "react";
 import { useState } from "react";

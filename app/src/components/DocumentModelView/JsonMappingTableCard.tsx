@@ -1,3 +1,4 @@
+// JsonMappingTableCard — Card for mapping a DB table to JSON structure; configures key names, types, and inline/array relationships.
 import React, { useState } from 'react';
 import { FaTimes, FaGripVertical, FaChevronDown, FaChevronUp, FaDatabase, FaLink } from 'react-icons/fa';
 import type { JsonColumnType, JsonTableMapping } from '@/services/ProjectService';

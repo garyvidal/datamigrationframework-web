@@ -1,3 +1,4 @@
+// App — Root component. Manages the open-projects list, active project, and top-level modal visibility.
 "use client";
 
 import { useState, useRef, useCallback } from "react";
@@ -12,7 +13,10 @@ import CreateProjectWizard from "./components/Project/CreateProjectWizard";
 import OpenProjectModal from "./components/Project/OpenProjectModal";
 import ConnectionsModal from "./components/Project/ConnectionsModal";
 import MarkLogicConnectionsModal from "./components/Project/MarkLogicConnectionsModal";
+import MigrationWizard from "./components/Migration/MigrationWizard";
+import MigrationProgressView from "./components/Migration/MigrationProgressView";
 import { ProjectData, DiagramContainer, getProject, saveProject } from "./services/ProjectService";
+import { DeploymentJob } from "./services/MigrationService";
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from "@xyflow/react";
 
 export default function App() {
@@ -20,6 +24,8 @@ export default function App() {
   const [showOpenModal, setShowOpenModal] = useState(true);
   const [showConnectionsModal, setShowConnectionsModal] = useState(false);
   const [showMarkLogicModal, setShowMarkLogicModal] = useState(false);
+  const [showMigrationWizard, setShowMigrationWizard] = useState(false);
+  const [activeJobForProgress, setActiveJobForProgress] = useState<DeploymentJob | null>(null);
   const [openProjects, setOpenProjects] = useState<ProjectData[]>([]);
   const [activeProjectName, setActiveProjectName] = useState<string | null>(null);
   const openProjectsRef = useRef<ProjectData[]>([]);
@@ -106,6 +112,7 @@ export default function App() {
         onOpenProject={() => setShowOpenModal(true)}
         onConnections={() => setShowConnectionsModal(true)}
         onMarkLogicConnections={() => setShowMarkLogicModal(true)}
+        onMigrate={() => setShowMigrationWizard(true)}
       />
       <SchemaView
         openProjects={openProjects}
@@ -136,6 +143,21 @@ export default function App() {
       )}
       {showMarkLogicModal && (
         <MarkLogicConnectionsModal onClose={() => setShowMarkLogicModal(false)} />
+      )}
+      {showMigrationWizard && (
+        <MigrationWizard
+          onClose={() => setShowMigrationWizard(false)}
+          onStarted={(job: DeploymentJob) => {
+            setShowMigrationWizard(false);
+            setActiveJobForProgress(job);
+          }}
+        />
+      )}
+      {activeJobForProgress && (
+        <MigrationProgressView
+          job={activeJobForProgress}
+          onClose={() => setActiveJobForProgress(null)}
+        />
       )}
     </div>
     </ThemeProvider>

@@ -1,3 +1,4 @@
+// XmlPreview — Syntax-highlighted XML preview panel generated from the current table mappings; includes copy-to-clipboard.
 import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { FaCopy, FaCheck } from 'react-icons/fa';

@@ -1,3 +1,4 @@
+// OpenProjectModal — Modal listing saved projects with open, rename, delete, and new-project actions.
 import React, { useEffect, useRef, useState } from 'react';
 import { FaFolderOpen, FaTimes, FaTrash, FaPlus, FaPencilAlt } from 'react-icons/fa';
 import { ProjectData, getProjects, deleteProject, saveProject } from '@/services/ProjectService';
@@ -67,7 +68,7 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+    <div className="dark fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-slate-700 rounded-lg shadow-2xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-600">
           <h2 className="text-gray-800 dark:text-white font-semibold text-lg">Open Project</h2>

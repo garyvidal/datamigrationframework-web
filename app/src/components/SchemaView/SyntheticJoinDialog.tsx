@@ -1,3 +1,4 @@
+// SyntheticJoinDialog — Portal dialog for creating synthetic (non-FK) joins between tables, with type-compatibility validation.
 import React, { useState, useMemo } from 'react';
 import * as ReactDOM from 'react-dom';
 import { FaTimes, FaLink, FaPlus } from 'react-icons/fa';

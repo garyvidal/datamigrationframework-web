@@ -1,3 +1,4 @@
+// LabeledHandle — ReactFlow connection handle with an optional text label, supporting all four positions.
 "use client";
 
 import React from "react";

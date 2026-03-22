@@ -1,3 +1,4 @@
+// Splitter — Draggable resize bar for dividing two adjacent panels horizontally or vertically.
 import React, { useState } from 'react';
 import {cn} from '@/lib/Utils';
 const Splitter = ({

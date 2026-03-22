@@ -1,3 +1,4 @@
+// Table — Reusable Tailwind-styled table primitives: Table, TableHeader, TableBody, TableRow, TableCell.
 import * as React from "react"
 
 import { cn } from "@/lib/Utils"

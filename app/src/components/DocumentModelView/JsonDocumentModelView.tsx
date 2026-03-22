@@ -1,3 +1,4 @@
+// JsonDocumentModelView — Main JSON document-mapping view; orchestrates JsonMappingTableCards and JsonPreview side-by-side.
 import React, { useState, useCallback, useRef } from 'react';
 import { FaFileCode } from 'react-icons/fa';
 import type {

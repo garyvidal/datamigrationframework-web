@@ -1,3 +1,4 @@
+// AddTablesModal — Modal for adding more tables to an existing project by re-analyzing the connected database schema.
 import React, { useState, useEffect } from 'react';
 import { analyzeSchema, resolveConnection, DbDatabase } from '@/services/SchemaService';
 import { ProjectData, saveProject } from '@/services/ProjectService';

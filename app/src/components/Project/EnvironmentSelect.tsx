@@ -1,3 +1,4 @@
+// EnvironmentSelect — Dropdown for tagging a connection with an environment label (Development, Staging, QA_UAT, Production, CI, None).
 import React, { useState, useRef, useEffect } from 'react';
 import { FaCheck, FaChevronDown } from 'react-icons/fa';
 import type { ConnectionEnvironment } from '@/services/SchemaService';

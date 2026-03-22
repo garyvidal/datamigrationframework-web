@@ -1,3 +1,4 @@
+// GenerateJsonModal — Portal modal for generating, paginating, and copying JSON document previews from project mappings.
 import React, { useCallback, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { FaCheck, FaCopy, FaChevronLeft, FaChevronRight, FaSpinner, FaExclamationTriangle, FaRedo } from 'react-icons/fa';

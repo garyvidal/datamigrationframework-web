@@ -1,3 +1,4 @@
+// CreateProjectWizard — 3-step modal wizard: DB Connection → Select Tables → Review/Save to create a new project.
 import React, { useState, useEffect, useRef } from 'react';
 import {
   analyzeSchema,

@@ -1,3 +1,4 @@
+// ConfigDialog — Portal dialog for per-project settings: default naming case (SNAKE/CAMEL/PASCAL/DASH) and edge line type.
 import React, { useState } from 'react';
 import * as ReactDOM from 'react-dom';
 import { ConnectionLineType } from '@xyflow/react';

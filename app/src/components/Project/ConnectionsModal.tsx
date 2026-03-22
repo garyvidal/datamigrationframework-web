@@ -1,3 +1,4 @@
+// ConnectionsModal — Modal for managing relational DB connections: create, edit, delete, and test saved connections.
 import React, { useState, useEffect } from 'react';
 import {
   getSavedConnections,
@@ -691,7 +692,7 @@ const ConnectionsModal: React.FC<ConnectionsModalProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div className="dark fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh] min-h-0">
 
         {/* Modal header */}

@@ -1,3 +1,4 @@
+// DocumentModelView — Main XML document-mapping view; orchestrates MappingTableCards, NamespaceManager, and XmlPreview side-by-side.
 import React, { useState, useCallback, useRef } from 'react';
 import { FaFileCode, FaCode } from 'react-icons/fa';
 import { SiJson } from 'react-icons/si';

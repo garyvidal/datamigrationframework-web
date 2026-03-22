@@ -1,3 +1,4 @@
+// BaseNode — Styled container div for ReactFlow nodes; applies border, shadow, and selected-state highlight.
 import React from "react";
 import { cn } from "@/lib/Utils";
 

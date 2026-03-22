@@ -1,3 +1,4 @@
+// ProjectPanel — Left panel listing project schemas and tables; supports table visibility toggle, add-tables, and open-mapping actions.
 import React, { useState } from 'react';
 import { ProjectData } from '@/services/ProjectService';
 import { FaChevronDown, FaChevronRight, FaTable, FaFolder, FaEye, FaPlus, FaCheck } from 'react-icons/fa';

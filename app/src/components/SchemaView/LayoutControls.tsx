@@ -1,3 +1,4 @@
+// LayoutControls — Portal dropdown for choosing the Dagre layout algorithm (TB, LR, BT, Grid).
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
 import * as ReactDOM from "react-dom";

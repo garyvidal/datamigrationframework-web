@@ -1,3 +1,4 @@
+// DiagramTabs — Scrollable tab bar for switching between open projects; supports inline rename and close.
 import * as React from "react";
 import { useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/Utils";

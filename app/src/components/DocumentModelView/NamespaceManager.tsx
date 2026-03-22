@@ -1,3 +1,4 @@
+// NamespaceManager — Collapsible UI for declaring XML namespaces (default and prefixed) used across the document mapping.
 import React, { useState } from 'react';
 import { FaTimes, FaPlus, FaGlobe } from 'react-icons/fa';
 import type { XmlNamespace } from '@/services/ProjectService';
@@ -52,7 +53,7 @@ export default function NamespaceManager({ namespaces, onChange }: NamespaceMana
     };
 
     const addPrefixedRow = () => {
-        onChange([...(defaultNs ? [defaultNs] : []), ...prefixedNs, { prefix: 'ns', uri: '' }]);
+        onChange([...(defaultNs ? [defaultNs] : []), ...prefixedNs, { prefix: 'xmlns', uri: '' }]);
         setCollapsed(false);
     };
 

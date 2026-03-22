@@ -1,3 +1,4 @@
+// CollapsiblePanel — Side panel wrapper that collapses to a narrow labeled ribbon and expands on demand.
 import * as React from 'react'
 import { FaChevronCircleRight, FaChevronCircleLeft, FaDatabase } from 'react-icons/fa'
 
