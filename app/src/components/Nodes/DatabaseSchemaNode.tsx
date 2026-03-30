@@ -9,6 +9,7 @@ type DatabaseSchemaNode = Node<{
   label: string;
   schema: { title: string; type: string; primaryKey?: boolean }[];
   collapsed?: boolean;
+  whereClause?: string;
 }>;
 
 export function DatabaseSchemaNode({
@@ -26,7 +27,14 @@ export function DatabaseSchemaNode({
       <Handle id="right-target" type="target" position={Position.Right} style={{ opacity: 0, pointerEvents: 'none' }} />
       <Handle id="left-source"  type="source" position={Position.Left}  style={{ opacity: 0, pointerEvents: 'none' }} />
       <h2 className="rounded-tl-md rounded-tr-md bg-gray-200 dark:bg-secondary p-2 text-sm text-gray-700 dark:text-muted-foreground w-full flex items-center justify-between select-none">
-        <span className="flex-1 text-center">{data.label}</span>
+        <span className="flex-1 text-center flex items-center justify-center gap-1">
+          {data.whereClause && (
+            <span title={`WHERE ${data.whereClause}`} className="text-amber-500 dark:text-amber-400 shrink-0">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M2 4a1 1 0 0 1 1-1h18a1 1 0 0 1 .78 1.63l-7 9A1 1 0 0 1 14 14v5.38a1 1 0 0 1-.55.9l-4 2A1 1 0 0 1 8 21.38V14a1 1 0 0 1-.22-.62l-7-9A1 1 0 0 1 2 4z"/></svg>
+            </span>
+          )}
+          {data.label}
+        </span>
         <button
           className="ml-2 bg-transparent border-none p-1 flex items-center justify-center pointer-events-none"
           tabIndex={-1}

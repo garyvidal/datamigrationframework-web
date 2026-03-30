@@ -1,7 +1,15 @@
 // JsonMappingTableCard — Card for mapping a DB table to JSON structure; configures key names, types, and inline/array relationships.
-import React, { useState } from 'react';
-import { FaTimes, FaGripVertical, FaChevronDown, FaChevronUp, FaDatabase, FaLink } from 'react-icons/fa';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
+import { FaTimes, FaGripVertical, FaChevronDown, FaChevronUp, FaDatabase, FaLink, FaPlus } from 'react-icons/fa';
 import type { JsonColumnType, JsonTableMapping } from '@/services/ProjectService';
+
+/** A DB column available for restore (deleted from mapping but still in schema). */
+export interface RestorableJsonColumn {
+    name: string;
+    jsonKey: string;
+    jsonType: JsonColumnType;
+}
 
 const JSON_TYPE_COLOR: Record<JsonColumnType, string> = {
     'string':  'bg-blue-900 text-blue-300',
@@ -35,14 +43,54 @@ interface JsonMappingTableCardProps {
     onChange: (updated: JsonTableMapping) => void;
     onRemove: () => void;
     parentJsonName?: string;
+    /** All DB columns for this table (used to compute which columns can be restored). */
+    availableColumns?: RestorableJsonColumn[];
 }
 
-export default function JsonMappingTableCard({ mapping, onChange, onRemove, parentJsonName }: JsonMappingTableCardProps) {
+export default function JsonMappingTableCard({ mapping, onChange, onRemove, parentJsonName, availableColumns = [] }: JsonMappingTableCardProps) {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [expandedSourceIndex, setExpandedSourceIndex] = useState(-1);
     const [dragIndex, setDragIndex] = useState(-1);
     const [insertBefore, setInsertBefore] = useState(-1);
     const gripPressed = React.useRef(false);
+    const [restoreOpen, setRestoreOpen] = useState(false);
+    const restoreButtonRef = useRef<HTMLButtonElement>(null);
+    const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
+
+    const openRestore = useCallback(() => {
+        if (restoreButtonRef.current) {
+            const rect = restoreButtonRef.current.getBoundingClientRect();
+            setDropdownPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right });
+        }
+        setRestoreOpen(true);
+    }, []);
+
+    useEffect(() => {
+        if (!restoreOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (restoreButtonRef.current && !restoreButtonRef.current.contains(e.target as Node)) {
+                setRestoreOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [restoreOpen]);
+
+    // Columns present in schema but removed from this mapping
+    const mappedSourceCols = new Set(mapping.columns.map(c => c.sourceColumn));
+    const restorableColumns = availableColumns.filter(c => !mappedSourceCols.has(c.name));
+
+    const restoreColumn = (col: RestorableJsonColumn) => {
+        const newCol = {
+            id: crypto.randomUUID(),
+            sourceColumn: col.name,
+            jsonKey: col.jsonKey,
+            jsonType: col.jsonType,
+            mappingType: 'Property' as const,
+        };
+        onChange({ ...mapping, columns: [...mapping.columns, newCol] });
+        setRestoreOpen(false);
+    };
 
     const isInline = mapping.mappingType === 'InlineObject';
     const headerBg = HEADER_BG[mapping.mappingType] ?? 'bg-slate-600';
@@ -119,6 +167,14 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                             <span className="text-xs text-gray-500 shrink-0">›</span>
                         </>
                     )}
+                    {mapping.joinColumn && (
+                        <span
+                            className="text-xs font-mono text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 px-1.5 py-0.5 rounded shrink-0"
+                            title={`Joined via FK column: ${mapping.joinColumn}`}
+                        >
+                            {mapping.joinColumn}
+                        </span>
+                    )}
                     <span className={`text-sm font-mono truncate ${accent}`}>
                         "{mapping.jsonName || '…'}"
                     </span>
@@ -127,6 +183,45 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                         {mapping.sourceSchema}.{mapping.sourceTable}
                     </span>
                 </div>
+
+                {/* Restore deleted columns */}
+                {restorableColumns.length > 0 && (
+                    <div className="shrink-0">
+                        <button
+                            ref={restoreButtonRef}
+                            onClick={() => restoreOpen ? setRestoreOpen(false) : openRestore()}
+                            title="Restore a deleted column"
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition border ${
+                                restoreOpen
+                                    ? 'border-cyan-500 bg-cyan-50 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 dark:border-cyan-600'
+                                    : 'border-gray-300 text-gray-500 hover:text-cyan-600 hover:border-cyan-500 dark:border-slate-600 dark:text-gray-400 dark:hover:text-cyan-300 dark:hover:border-cyan-600'
+                            }`}
+                        >
+                            <FaPlus size={8} />
+                            <span>{restorableColumns.length}</span>
+                        </button>
+                        {restoreOpen && dropdownPos && ReactDOM.createPortal(
+                            <div
+                                style={{ position: 'fixed', top: dropdownPos.top, right: dropdownPos.right }}
+                                className="z-[9999] min-w-[160px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg overflow-hidden"
+                            >
+                                <div className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-700 font-medium">
+                                    Restore column
+                                </div>
+                                {restorableColumns.map(col => (
+                                    <button
+                                        key={col.name}
+                                        onClick={() => restoreColumn(col)}
+                                        className="w-full text-left px-3 py-1.5 text-xs font-mono text-gray-700 dark:text-gray-200 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 hover:text-cyan-700 dark:hover:text-cyan-300 transition"
+                                    >
+                                        {col.name}
+                                    </button>
+                                ))}
+                            </div>,
+                            document.body,
+                        )}
+                    </div>
+                )}
 
                 <button
                     onClick={() => setSettingsOpen(v => !v)}

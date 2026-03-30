@@ -1,4 +1,4 @@
-const SERVICE_URL = 'http://localhost:9390';
+const SERVICE_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:9390';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -8,6 +8,8 @@ export interface DeploymentJob {
   id: string;
   projectId: string;
   projectName: string;
+  sourceConnectionId?: string;
+  sourceConnectionName?: string;
   marklogicConnectionId: string;
   marklogicConnectionName: string;
   directoryPath: string;
@@ -34,9 +36,23 @@ export interface MigrationProgress {
 
 export interface MigrationRequest {
   projectId: string;
+  sourceConnectionId?: string;
   marklogicConnectionId: string;
   directoryPath: string;
   collections: string[];
+}
+
+export interface TableRowCount {
+  schema: string | null;
+  tableName: string;
+  role: 'root' | 'child';
+  rowCount: number;
+  whereClause?: string | null;
+}
+
+export interface MigrationPreview {
+  tables: TableRowCount[];
+  totalRows: number;
 }
 
 // ── API functions ─────────────────────────────────────────────────────────────
@@ -71,4 +87,46 @@ export const deleteMigrationJob = async (jobId: string): Promise<void> => {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error(`Failed to delete migration job: ${response.statusText}`);
+};
+
+export const getMigrationPreview = async (projectId: string, connectionId?: string): Promise<MigrationPreview> => {
+  const url = new URL(`${SERVICE_URL}/v1/migration/preview/${encodeURIComponent(projectId)}`);
+  if (connectionId) url.searchParams.set('connectionId', connectionId);
+  const response = await fetch(url.toString());
+  if (!response.ok) throw new Error(`Failed to load migration preview: ${response.statusText}`);
+  return response.json();
+};
+
+/**
+ * Opens an SSE connection to receive migration progress events.
+ * - `onProgress` is called at each ~10% milestone with live processedRecords/elapsedSeconds.
+ * - `onComplete` is called with the final state; the connection is closed automatically.
+ * - `onError` is called if the connection drops unexpectedly.
+ * Returns the EventSource so the caller can close it on unmount.
+ */
+export const subscribeMigrationProgress = (
+  jobId: string,
+  onProgress: (p: MigrationProgress) => void,
+  onComplete: (p: MigrationProgress) => void,
+  onError?: () => void,
+): EventSource => {
+  const es = new EventSource(
+    `${SERVICE_URL}/v1/migration/jobs/${encodeURIComponent(jobId)}/events`,
+  );
+
+  es.addEventListener('progress', (e: MessageEvent) => {
+    try { onProgress(JSON.parse(e.data)); } catch { /* ignore parse errors */ }
+  });
+
+  es.addEventListener('complete', (e: MessageEvent) => {
+    try { onComplete(JSON.parse(e.data)); } catch { /* ignore parse errors */ }
+    es.close();
+  });
+
+  es.onerror = () => {
+    es.close();
+    onError?.();
+  };
+
+  return es;
 };

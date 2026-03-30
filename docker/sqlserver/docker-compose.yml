@@ -1,0 +1,26 @@
+services:
+  db:
+    container_name: sqlserver
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "SqlServer2022!"
+      MSSQL_PID: Developer
+    entrypoint: /bin/bash /entrypoint.sh
+    volumes:
+      - sqlserver_data:/var/opt/mssqlS
+      - ./backup:/var/opt/mssql/backup
+      - ./entrypoint.sh:/entrypoint.sh
+      - ./files:/files
+    ports:
+      - 51433:1433
+    networks:
+      - db
+
+networks:
+  db:
+    driver: bridge
+
+volumes:
+  sqlserver_data:
+    driver: local

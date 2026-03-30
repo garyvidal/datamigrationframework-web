@@ -1,5 +1,6 @@
 // MappingTableCard — Card for mapping a DB table to XML elements; configures columns, attributes, and inline/child relationships with drag-reorder.
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { FaTimes, FaTag, FaLayerGroup, FaLink, FaGripVertical, FaChevronDown, FaChevronUp, FaPlus, FaDatabase } from 'react-icons/fa';
 import type { XmlTableMapping, XmlColumnMapping, XmlNamespace, ColumnMappingType, XmlSchemaType } from '@/services/ProjectService';
 
@@ -186,7 +187,8 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
     const [pendingNsPropagate, setPendingNsPropagate] = useState<string | null>(null);
     /** Whether the restore-column dropdown is open. */
     const [restoreOpen, setRestoreOpen] = useState(false);
-    const restoreRef = useRef<HTMLDivElement>(null);
+    const restoreButtonRef = useRef<HTMLButtonElement>(null);
+    const [restoreDropdownPos, setRestoreDropdownPos] = useState<{ top: number; right: number } | null>(null);
     /** Index of custom field row whose fn editor is open (-1 = none). */
     const [expandedFnIndex, setExpandedFnIndex] = useState(-1);
     /** Index of DB column row whose relational info panel is open (-1 = none). */
@@ -202,11 +204,19 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
      */
     const gripPressed = useRef(false);
 
+    const openRestore = useCallback(() => {
+        if (restoreButtonRef.current) {
+            const rect = restoreButtonRef.current.getBoundingClientRect();
+            setRestoreDropdownPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right });
+        }
+        setRestoreOpen(true);
+    }, []);
+
     // Close restore dropdown on outside click
-    React.useEffect(() => {
+    useEffect(() => {
         if (!restoreOpen) return;
         const handler = (e: MouseEvent) => {
-            if (restoreRef.current && !restoreRef.current.contains(e.target as Node)) {
+            if (restoreButtonRef.current && !restoreButtonRef.current.contains(e.target as Node)) {
                 setRestoreOpen(false);
             }
         };
@@ -362,6 +372,14 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                             <span className="text-xs text-gray-500 shrink-0">›</span>
                         </>
                     )}
+                    {mapping.joinColumn && (
+                        <span
+                            className="text-xs font-mono text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 px-1.5 py-0.5 rounded shrink-0"
+                            title={`Joined via FK column: ${mapping.joinColumn}`}
+                        >
+                            {mapping.joinColumn}
+                        </span>
+                    )}
                     <span className={`text-sm font-mono truncate ${accent}`}>
                         &lt;{mapping.xmlName || '…'}&gt;
                     </span>
@@ -375,9 +393,10 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
 
                 {/* Restore deleted columns */}
                 {restorableColumns.length > 0 && !isCustom && (
-                    <div ref={restoreRef} className="relative shrink-0">
+                    <div className="shrink-0">
                         <button
-                            onClick={() => setRestoreOpen(v => !v)}
+                            ref={restoreButtonRef}
+                            onClick={() => restoreOpen ? setRestoreOpen(false) : openRestore()}
                             title="Restore a deleted column"
                             className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition border ${
                                 restoreOpen
@@ -388,8 +407,11 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                             <FaPlus size={8} />
                             <span>{restorableColumns.length}</span>
                         </button>
-                        {restoreOpen && (
-                            <div className="absolute right-0 top-full mt-1 z-30 min-w-[160px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg overflow-hidden">
+                        {restoreOpen && restoreDropdownPos && ReactDOM.createPortal(
+                            <div
+                                style={{ position: 'fixed', top: restoreDropdownPos.top, right: restoreDropdownPos.right }}
+                                className="z-[9999] min-w-[160px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg overflow-hidden"
+                            >
                                 <div className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-700 font-medium">
                                     Restore column
                                 </div>
@@ -402,7 +424,8 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                                         {col.name}
                                     </button>
                                 ))}
-                            </div>
+                            </div>,
+                            document.body,
                         )}
                     </div>
                 )}

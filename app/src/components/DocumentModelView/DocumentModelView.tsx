@@ -20,9 +20,9 @@ function hasTableRelationship(
     b: { schema: string; table: string },
 ): boolean {
     const aRels = project.schemas[a.schema]?.tables?.[a.table]?.relationships ?? [];
-    if (aRels.some(r => r.toTable === b.table)) return true;
+    if (aRels.some(r => r.toTable === `${b.schema}.${b.table}`)) return true;
     const bRels = project.schemas[b.schema]?.tables?.[b.table]?.relationships ?? [];
-    if (bRels.some(r => r.toTable === a.table)) return true;
+    if (bRels.some(r => r.toTable === `${a.schema}.${a.table}`)) return true;
     const joins = project.syntheticJoins ?? [];
     return joins.some(j =>
         (j.sourceSchema === a.schema && j.sourceTable === a.table && j.targetSchema === b.schema && j.targetTable === b.table) ||
@@ -46,6 +46,31 @@ interface DocumentModelViewProps {
     onHighlightedTableConsumed?: () => void;
 }
 
+/**
+ * Returns the FK column names for all relationships between two tables (from either side).
+ * Used to detect multi-FK scenarios and populate the FK picker.
+ */
+function getMultiFkColumns(
+    project: ProjectData,
+    parentSchema: string, parentTable: string,
+    childSchema: string,  childTable: string,
+): string[] {
+    const childFullName = `${childSchema}.${childTable}`;
+    const parentFullName = `${parentSchema}.${parentTable}`;
+    const parentRels = project.schemas[parentSchema]?.tables?.[parentTable]?.relationships ?? [];
+    const childRels  = project.schemas[childSchema]?.tables?.[childTable]?.relationships ?? [];
+    const cols: string[] = [];
+    // FKs from parent pointing to child
+    for (const r of parentRels) {
+        if (r.toTable === childFullName || r.toTable === childTable) cols.push(r.fromColumn);
+    }
+    // FKs from child pointing to parent (reverse direction)
+    for (const r of childRels) {
+        if (r.toTable === parentFullName || r.toTable === parentTable) cols.push(r.fromColumn);
+    }
+    return cols;
+}
+
 /** Build a full XmlTableMapping for a given table using the project's column data. */
 function buildTableMapping(
     tableName: string,
@@ -53,6 +78,7 @@ function buildTableMapping(
     project: ProjectData,
     mappingType: TableMappingType,
     parentRef?: string,
+    joinColumn?: string,
 ): XmlTableMapping {
     const namingCase = project.settings?.defaultCasing ?? 'SNAKE';
     const tableColumns = project.schemas[schemaName]?.tables?.[tableName]?.columns ?? {};
@@ -74,6 +100,7 @@ function buildTableMapping(
         wrapInParent: mappingType === 'Elements',
         wrapperElementName: mappingType === 'Elements' ? '' : undefined,
         parentRef,
+        joinColumn: joinColumn || undefined,
         columns,
     };
 }
@@ -96,7 +123,7 @@ function getAvailableColumns(
     }));
 }
 
-type PopoverStep = 'type' | 'inline-parent';
+type PopoverStep = 'type' | 'inline-parent' | 'fk-picker';
 
 const DND_CARD_KEY = 'application/x-card-index';
 
@@ -144,12 +171,14 @@ export default function DocumentModelView({
     const [showPopover, setShowPopover] = useState(false);
     const [popoverStep, setPopoverStep] = useState<PopoverStep>('type');
     const [inlineParentRef, setInlineParentRef] = useState<string>('');
+    const [selectedJoinColumn, setSelectedJoinColumn] = useState<string>('');
     // Show the popover whenever a new pending table arrives.
     React.useEffect(() => {
         if (pendingTable) {
             setShowPopover(true);
             setPopoverStep('type');
             setInlineParentRef('');
+            setSelectedJoinColumn('');
         }
     }, [pendingTable]);
 
@@ -186,10 +215,10 @@ export default function DocumentModelView({
     ];
     const validParentOptions = parentOptions.filter(p => p.hasRelationship);
 
-    const handleAddMapping = useCallback((type: TableMappingType, parentRef?: string) => {
+    const handleAddMapping = useCallback((type: TableMappingType, parentRef?: string, joinColumn?: string) => {
         if (!pendingTable) return;
         const { tableName, schemaName } = pendingTable;
-        const newMap = buildTableMapping(tableName, schemaName, project, type, parentRef);
+        const newMap = buildTableMapping(tableName, schemaName, project, type, parentRef, joinColumn);
 
         let updatedDocModel: ProjectMapping['documentModel'];
         if (type === 'RootElement') {
@@ -207,26 +236,41 @@ export default function DocumentModelView({
     const handleDismissPopover = () => {
         setShowPopover(false);
         setPopoverStep('type');
+        setSelectedJoinColumn('');
         onPendingTableConsumed();
     };
 
     const handleInlineElementClick = () => {
         if (validParentOptions.length === 0) return;
         setInlineParentRef(validParentOptions[0].id);
+        setSelectedJoinColumn('');
         setPopoverStep('inline-parent');
     };
 
+    /** Called when user confirms a parent — checks for multi-FK and either shows picker or adds directly. */
+    const handleConfirmParent = useCallback((xmlMappingType: TableMappingType) => {
+        if (!pendingTable || !inlineParentRef) return;
+        const parent = parentOptions.find(p => p.id === inlineParentRef);
+        if (!parent) return;
+        const fkCols = getMultiFkColumns(project,
+            parent.sourceSchema, parent.sourceTable,
+            pendingTable.schemaName, pendingTable.tableName);
+        if (fkCols.length > 1) {
+            setSelectedJoinColumn(fkCols[0]);
+            setPopoverStep('fk-picker');
+        } else {
+            handleAddMapping(xmlMappingType, inlineParentRef, fkCols[0] || undefined);
+        }
+    }, [pendingTable, inlineParentRef, parentOptions, project, handleAddMapping]);
+
     const handleCardChange = useCallback((updated: XmlTableMapping) => {
         let updatedDocModel: ProjectMapping['documentModel'];
-        if (updated.mappingType === 'RootElement' && root?.sourceTable === updated.sourceTable && root?.sourceSchema === updated.sourceSchema) {
+        if (updated.mappingType === 'RootElement' && root?.id === updated.id) {
             updatedDocModel = { root: updated, elements: elements ?? [] };
         } else {
             updatedDocModel = {
                 root,
-                elements: (elements ?? []).map(e =>
-                    e.sourceTable === updated.sourceTable && e.sourceSchema === updated.sourceSchema && e.mappingType === updated.mappingType
-                        ? updated : e
-                ),
+                elements: (elements ?? []).map(e => e.id === updated.id ? updated : e),
             };
         }
         onMappingChange({ ...project, mapping: { ...project.mapping, documentModel: updatedDocModel } });
@@ -454,7 +498,7 @@ export default function DocumentModelView({
                                     Cancel
                                 </button>
                             </>
-                        ) : (
+                        ) : popoverStep === 'inline-parent' ? (
                             <>
                                 <p className="text-sm font-semibold text-gray-800 dark:text-white mb-1">Select Parent</p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -490,8 +534,54 @@ export default function DocumentModelView({
                                         Back
                                     </button>
                                     <button
-                                        onClick={() => handleAddMapping('InlineElement', inlineParentRef)}
+                                        onClick={() => handleConfirmParent('InlineElement')}
                                         disabled={!inlineParentRef || !validParentOptions.some(p => p.id === inlineParentRef)}
+                                        className="flex-1 px-3 py-1.5 text-xs font-semibold rounded transition
+                                            enabled:bg-violet-600 enabled:hover:bg-violet-500 enabled:text-white
+                                            dark:enabled:bg-violet-700 dark:enabled:hover:bg-violet-600
+                                            disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed
+                                            dark:disabled:bg-slate-700 dark:disabled:text-gray-600"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-sm font-semibold text-gray-800 dark:text-white mb-1">Select Relationship</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                    Multiple foreign keys exist between these tables. Choose which one to use:
+                                </p>
+                                <div className="space-y-1 mb-4">
+                                    {(() => {
+                                        const parent = parentOptions.find(p => p.id === inlineParentRef);
+                                        return parent
+                                            ? getMultiFkColumns(project, parent.sourceSchema, parent.sourceTable, pendingTable.schemaName, pendingTable.tableName)
+                                            : [];
+                                    })().map(col => (
+                                        <button
+                                            key={col}
+                                            onClick={() => setSelectedJoinColumn(col)}
+                                            className={`w-full text-left px-3 py-2 rounded border text-sm font-mono transition ${
+                                                selectedJoinColumn === col
+                                                    ? 'border-violet-400 bg-violet-50 text-violet-700 dark:border-violet-500 dark:bg-violet-900/40 dark:text-violet-200'
+                                                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-300 dark:hover:border-slate-400'
+                                            }`}
+                                        >
+                                            {col}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setPopoverStep('inline-parent')}
+                                        className="flex-1 px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-500 hover:text-gray-800 hover:border-gray-400 dark:border-slate-600 dark:text-gray-400 dark:hover:text-white dark:hover:border-slate-400 transition"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        onClick={() => handleAddMapping('InlineElement', inlineParentRef, selectedJoinColumn || undefined)}
+                                        disabled={!selectedJoinColumn}
                                         className="flex-1 px-3 py-1.5 text-xs font-semibold rounded transition
                                             enabled:bg-violet-600 enabled:hover:bg-violet-500 enabled:text-white
                                             dark:enabled:bg-violet-700 dark:enabled:hover:bg-violet-600
@@ -571,14 +661,14 @@ export default function DocumentModelView({
                         >
                             {normalElements.map((el, i) => {
                                 const fullIndex = (elements ?? []).indexOf(el);
-                                const key = `${el.sourceSchema}.${el.sourceTable}`;
+                                const key = el.id ?? `${el.sourceSchema}.${el.sourceTable}.${i}`;
                                 const isHighlighted = highlightedTable
                                     ? highlightedTable.schemaName === el.sourceSchema && highlightedTable.tableName === el.sourceTable
                                     : false;
                                 const isBeingDragged = dragCardIdx === i;
                                 const showLineBefore = dropLineIdx === i && dragCardIdx !== null && isCardDropValid(dragCardIdx, i, normalElements);
                                 return (
-                                    <div key={`${el.id ?? el.sourceTable}.${i}`}>
+                                    <div key={key}>
                                         {/* Drop indicator line before this card */}
                                         <div className={`h-0.5 mx-1 rounded transition-all ${showLineBefore ? 'bg-cyan-400 mb-1' : 'bg-transparent mb-0'}`} />
                                         <div

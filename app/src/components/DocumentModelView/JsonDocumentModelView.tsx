@@ -10,7 +10,7 @@ import type {
 } from '@/services/ProjectService';
 import { convertCaseFromSetting } from '@/lib/CaseConverter';
 import { mapSqlTypeToJson } from '@/lib/TypeMapper';
-import JsonMappingTableCard from './JsonMappingTableCard';
+import JsonMappingTableCard, { type RestorableJsonColumn } from './JsonMappingTableCard';
 
 /** Returns true if there is an FK relationship or synthetic join between two tables (in either direction). */
 function hasTableRelationship(
@@ -19,9 +19,9 @@ function hasTableRelationship(
     b: { schema: string; table: string },
 ): boolean {
     const aRels = project.schemas[a.schema]?.tables?.[a.table]?.relationships ?? [];
-    if (aRels.some(r => r.toTable === b.table)) return true;
+    if (aRels.some(r => r.toTable === `${b.schema}.${b.table}`)) return true;
     const bRels = project.schemas[b.schema]?.tables?.[b.table]?.relationships ?? [];
-    if (bRels.some(r => r.toTable === a.table)) return true;
+    if (bRels.some(r => r.toTable === `${a.schema}.${a.table}`)) return true;
     const joins = project.syntheticJoins ?? [];
     return joins.some(j =>
         (j.sourceSchema === a.schema && j.sourceTable === a.table && j.targetSchema === b.schema && j.targetTable === b.table) ||
@@ -35,6 +35,7 @@ function buildJsonTableMapping(
     project: ProjectData,
     mappingType: JsonTableMappingType,
     parentRef?: string,
+    joinColumn?: string,
 ): JsonTableMapping {
     const namingCase = project.settings?.defaultCasing ?? 'SNAKE';
     const tableColumns = project.schemas[schemaName]?.tables?.[tableName]?.columns ?? {};
@@ -54,15 +55,49 @@ function buildJsonTableMapping(
         jsonName: convertCaseFromSetting(tableName, namingCase),
         mappingType,
         parentRef,
+        joinColumn: joinColumn || undefined,
         columns,
     };
+}
+
+function getMultiFkColumns(
+    project: ProjectData,
+    parentSchema: string, parentTable: string,
+    childSchema: string,  childTable: string,
+): string[] {
+    const childFullName = `${childSchema}.${childTable}`;
+    const parentFullName = `${parentSchema}.${parentTable}`;
+    const parentRels = project.schemas[parentSchema]?.tables?.[parentTable]?.relationships ?? [];
+    const childRels  = project.schemas[childSchema]?.tables?.[childTable]?.relationships ?? [];
+    const cols: string[] = [];
+    for (const r of parentRels) {
+        if (r.toTable === childFullName || r.toTable === childTable) cols.push(r.fromColumn);
+    }
+    for (const r of childRels) {
+        if (r.toTable === parentFullName || r.toTable === parentTable) cols.push(r.fromColumn);
+    }
+    return cols;
 }
 
 function emptyJsonDocumentModel(): NonNullable<ProjectMapping['jsonDocumentModel']> {
     return { elements: [] };
 }
 
-type PopoverStep = 'type' | 'inline-parent';
+/** Build the full list of RestorableJsonColumn for a table mapping from project schema data. */
+function getAvailableJsonColumns(
+    mapping: JsonTableMapping,
+    project: ProjectData,
+): RestorableJsonColumn[] {
+    const namingCase = project.settings?.defaultCasing ?? 'SNAKE';
+    const tableColumns = project.schemas[mapping.sourceSchema]?.tables?.[mapping.sourceTable]?.columns ?? {};
+    return Object.values(tableColumns).map(col => ({
+        name: col.name,
+        jsonKey: convertCaseFromSetting(col.name, namingCase),
+        jsonType: mapSqlTypeToJson(col.type ?? ''),
+    }));
+}
+
+type PopoverStep = 'type' | 'inline-parent' | 'fk-picker';
 
 interface JsonDocumentModelViewProps {
     project: ProjectData;
@@ -96,12 +131,14 @@ export default function JsonDocumentModelView({
     const [showPopover, setShowPopover] = useState(false);
     const [popoverStep, setPopoverStep] = useState<PopoverStep>('type');
     const [inlineParentRef, setInlineParentRef] = useState<string>('');
+    const [selectedJoinColumn, setSelectedJoinColumn] = useState<string>('');
 
     React.useEffect(() => {
         if (pendingTable) {
             setShowPopover(true);
             setPopoverStep('type');
             setInlineParentRef('');
+            setSelectedJoinColumn('');
         }
     }, [pendingTable]);
 
@@ -145,10 +182,10 @@ export default function JsonDocumentModelView({
         onMappingChange({ ...project, mapping: updatedMapping });
     };
 
-    const handleAddMapping = useCallback((type: JsonTableMappingType, parentRef?: string) => {
+    const handleAddMapping = useCallback((type: JsonTableMappingType, parentRef?: string, joinColumn?: string) => {
         if (!pendingTable) return;
         const { tableName, schemaName } = pendingTable;
-        const newMap = buildJsonTableMapping(tableName, schemaName, project, type, parentRef);
+        const newMap = buildJsonTableMapping(tableName, schemaName, project, type, parentRef, joinColumn);
 
         if (type === 'RootObject') {
             updateJsonModel(newMap, elements ?? []);
@@ -163,19 +200,32 @@ export default function JsonDocumentModelView({
     const handleDismissPopover = () => {
         setShowPopover(false);
         setPopoverStep('type');
+        setSelectedJoinColumn('');
         onPendingTableConsumed();
     };
 
     const handleCardChange = useCallback((updated: JsonTableMapping) => {
-        if (updated.mappingType === 'RootObject' && root?.sourceTable === updated.sourceTable && root?.sourceSchema === updated.sourceSchema) {
+        if (updated.mappingType === 'RootObject' && root?.id === updated.id) {
             updateJsonModel(updated, elements ?? []);
         } else {
-            updateJsonModel(root, (elements ?? []).map(e =>
-                e.sourceTable === updated.sourceTable && e.sourceSchema === updated.sourceSchema && e.mappingType === updated.mappingType
-                    ? updated : e
-            ));
+            updateJsonModel(root, (elements ?? []).map(e => e.id === updated.id ? updated : e));
         }
     }, [project, root, elements]);
+
+    const handleConfirmParent = useCallback((jsonMappingType: JsonTableMappingType) => {
+        if (!pendingTable || !inlineParentRef) return;
+        const parent = parentOptions.find(p => p.id === inlineParentRef);
+        if (!parent) return;
+        const fkCols = getMultiFkColumns(project,
+            parent.sourceSchema, parent.sourceTable,
+            pendingTable.schemaName, pendingTable.tableName);
+        if (fkCols.length > 1) {
+            setSelectedJoinColumn(fkCols[0]);
+            setPopoverStep('fk-picker');
+        } else {
+            handleAddMapping(jsonMappingType, inlineParentRef, fkCols[0] || undefined);
+        }
+    }, [pendingTable, inlineParentRef, parentOptions, project, handleAddMapping]);
 
     const handleRemoveRoot = useCallback(() => {
         updateJsonModel(undefined, elements ?? []);
@@ -260,7 +310,7 @@ export default function JsonDocumentModelView({
                                     Cancel
                                 </button>
                             </>
-                        ) : (
+                        ) : popoverStep === 'inline-parent' ? (
                             <>
                                 <p className="text-sm font-semibold text-gray-800 dark:text-white mb-1">Select Parent</p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -293,8 +343,54 @@ export default function JsonDocumentModelView({
                                         Back
                                     </button>
                                     <button
-                                        onClick={() => handleAddMapping('InlineObject', inlineParentRef)}
+                                        onClick={() => handleConfirmParent('InlineObject')}
                                         disabled={!inlineParentRef || !validParentOptions.some(p => p.id === inlineParentRef)}
+                                        className="flex-1 px-3 py-1.5 text-xs font-semibold rounded transition
+                                            enabled:bg-violet-600 enabled:hover:bg-violet-500 enabled:text-white
+                                            dark:enabled:bg-violet-700 dark:enabled:hover:bg-violet-600
+                                            disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed
+                                            dark:disabled:bg-slate-700 dark:disabled:text-gray-600"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-sm font-semibold text-gray-800 dark:text-white mb-1">Select Relationship</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                    Multiple foreign keys exist between these tables. Choose which one to use:
+                                </p>
+                                <div className="space-y-1 mb-4">
+                                    {(() => {
+                                        const parent = parentOptions.find(p => p.id === inlineParentRef);
+                                        return parent
+                                            ? getMultiFkColumns(project, parent.sourceSchema, parent.sourceTable, pendingTable.schemaName, pendingTable.tableName)
+                                            : [];
+                                    })().map(col => (
+                                        <button
+                                            key={col}
+                                            onClick={() => setSelectedJoinColumn(col)}
+                                            className={`w-full text-left px-3 py-2 rounded border text-sm font-mono transition ${
+                                                selectedJoinColumn === col
+                                                    ? 'border-violet-400 bg-violet-50 text-violet-700 dark:border-violet-500 dark:bg-violet-900/40 dark:text-violet-200'
+                                                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-300 dark:hover:border-slate-400'
+                                            }`}
+                                        >
+                                            {col}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setPopoverStep('inline-parent')}
+                                        className="flex-1 px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-500 hover:text-gray-800 hover:border-gray-400 dark:border-slate-600 dark:text-gray-400 dark:hover:text-white dark:hover:border-slate-400 transition"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        onClick={() => handleAddMapping('InlineObject', inlineParentRef, selectedJoinColumn || undefined)}
+                                        disabled={!selectedJoinColumn}
                                         className="flex-1 px-3 py-1.5 text-xs font-semibold rounded transition
                                             enabled:bg-violet-600 enabled:hover:bg-violet-500 enabled:text-white
                                             dark:enabled:bg-violet-700 dark:enabled:hover:bg-violet-600
@@ -328,7 +424,7 @@ export default function JsonDocumentModelView({
                             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 px-1">Root Object</div>
                             <div ref={el => el ? cardRefs.current.set(key, el) : cardRefs.current.delete(key)}
                                  className={isHighlighted ? 'rounded ring-2 ring-cyan-400 ring-offset-1 ring-offset-white dark:ring-offset-slate-800' : ''}>
-                                <JsonMappingTableCard mapping={root} onChange={handleCardChange} onRemove={handleRemoveRoot} />
+                                <JsonMappingTableCard mapping={root} onChange={handleCardChange} onRemove={handleRemoveRoot} availableColumns={getAvailableJsonColumns(root, project)} />
                             </div>
                         </div>
                     );
@@ -340,11 +436,11 @@ export default function JsonDocumentModelView({
                         <div className="space-y-2">
                             {normalElements.map((el, i) => {
                                 const fullIndex = (elements ?? []).indexOf(el);
-                                const key = `${el.sourceSchema}.${el.sourceTable}`;
+                                const key = el.id ?? `${el.sourceSchema}.${el.sourceTable}.${i}`;
                                 const isHighlighted = highlightedTable?.schemaName === el.sourceSchema && highlightedTable?.tableName === el.sourceTable;
                                 return (
                                     <div
-                                        key={`${el.sourceSchema}.${el.sourceTable}.${el.mappingType}.${i}`}
+                                        key={key}
                                         ref={div => div ? cardRefs.current.set(key, div) : cardRefs.current.delete(key)}
                                         className={isHighlighted ? 'rounded ring-2 ring-cyan-400 ring-offset-1 ring-offset-white dark:ring-offset-slate-800' : ''}
                                     >
@@ -353,6 +449,7 @@ export default function JsonDocumentModelView({
                                             onChange={handleCardChange}
                                             onRemove={() => handleRemoveElement(fullIndex)}
                                             parentJsonName={el.mappingType === 'InlineObject' ? resolveParentJsonName(el.parentRef) : undefined}
+                                            availableColumns={getAvailableJsonColumns(el, project)}
                                         />
                                     </div>
                                 );

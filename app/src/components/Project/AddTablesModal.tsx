@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { analyzeSchema, resolveConnection, DbDatabase } from '@/services/SchemaService';
 import { ProjectData, saveProject } from '@/services/ProjectService';
-import { FaFolder, FaSpinner, FaTable } from 'react-icons/fa';
+import { FaFolder, FaSpinner, FaTable, FaTimes } from 'react-icons/fa';
 
 interface AddTablesModalProps {
   project: ProjectData;
@@ -17,6 +17,7 @@ const AddTablesModal: React.FC<AddTablesModalProps> = ({ project, onClose, onTab
   const [selectedTables, setSelectedTables] = useState<Record<string, Set<string>>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [filterText, setFilterText] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -108,6 +109,26 @@ const AddTablesModal: React.FC<AddTablesModalProps> = ({ project, onClose, onTab
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-white text-2xl leading-none">&times;</button>
         </div>
 
+        <div className="px-6 pt-3 pb-2 border-b border-gray-200 dark:border-slate-700">
+          <div className="relative">
+            <input
+              type="text"
+              value={filterText}
+              onChange={e => setFilterText(e.target.value)}
+              placeholder="Filter tables..."
+              className="w-full px-2 py-1.5 pr-7 text-xs bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-500 rounded text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            {filterText && (
+              <button
+                onClick={() => setFilterText('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-white"
+              >
+                <FaTimes size={10} />
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loading && (
             <div className="flex items-center justify-center py-12 gap-3 text-gray-400">
@@ -124,7 +145,10 @@ const AddTablesModal: React.FC<AddTablesModalProps> = ({ project, onClose, onTab
                 {totalSelected} new table{totalSelected !== 1 ? 's' : ''} selected
               </p>
               {Object.entries(database.schemas).map(([schemaName, schema]) => {
-                const tableNames = Object.keys(schema.tables ?? {});
+                const lc = filterText.toLowerCase();
+                const allTableNames = Object.keys(schema.tables ?? {});
+                const tableNames = lc ? allTableNames.filter(t => t.toLowerCase().includes(lc)) : allTableNames;
+                if (tableNames.length === 0 && lc) return null;
                 const available = tableNames.filter(t => !isInProject(schemaName, t));
                 const selectedSet = selectedTables[schemaName] ?? new Set<string>();
                 const allAvailableSelected = available.length > 0 && available.every(t => selectedSet.has(t));

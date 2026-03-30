@@ -1,7 +1,7 @@
 // ProjectPanel — Left panel listing project schemas and tables; supports table visibility toggle, add-tables, and open-mapping actions.
 import React, { useState } from 'react';
 import { ProjectData } from '@/services/ProjectService';
-import { FaChevronDown, FaChevronRight, FaTable, FaFolder, FaEye, FaPlus, FaCheck } from 'react-icons/fa';
+import { FaChevronDown, FaChevronRight, FaTable, FaFolder, FaEye, FaPlus, FaCheck, FaFilter } from 'react-icons/fa';
 
 interface ProjectPanelProps {
   project: ProjectData;
@@ -27,6 +27,7 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({
     new Set(schemas.map(([key]) => key))
   );
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [filterText, setFilterText] = useState('');
 
   const toggleSchema = (schemaKey: string) => {
     setExpandedSchemas((prev) => {
@@ -76,12 +77,30 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({
             : `Connection: ${project.connectionName}`
           }
         </div>
+        <div className="mt-1.5 relative">
+          <input
+            type="text"
+            value={filterText}
+            onChange={e => setFilterText(e.target.value)}
+            placeholder="Filter tables..."
+            className="w-full px-2 py-1 pr-6 text-xs bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-500 rounded text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          {filterText && (
+            <button
+              onClick={() => setFilterText('')}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-white text-xs leading-none"
+            >&times;</button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto divide-y divide-gray-200 dark:divide-slate-600">
         {schemas.map(([schemaKey, schema]) => {
-          const tables = Object.values(schema.tables ?? {});
-          const isExpanded = expandedSchemas.has(schemaKey);
+          const allTables = Object.values(schema.tables ?? {});
+          const lc = filterText.toLowerCase();
+          const tables = lc ? allTables.filter(t => t.tableName.toLowerCase().includes(lc)) : allTables;
+          if (tables.length === 0 && lc) return null;
+          const isExpanded = expandedSchemas.has(schemaKey) || !!lc;
           const mappedInSchema = mappedTableKeys
             ? tables.filter(t => mappedTableKeys.has(`${schemaKey}.${t.tableName}`)).length
             : 0;
@@ -116,6 +135,7 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({
                     tables.map((table) => {
                       const key = `${schemaKey}.${table.tableName}`;
                       const isMapped = mappedTableKeys?.has(key) ?? false;
+                      const hasFilter = !!(table.whereClause?.trim());
                       return (
                         <button
                           key={key}
@@ -130,6 +150,13 @@ const ProjectPanel: React.FC<ProjectPanelProps> = ({
                           />
                           <span className={`truncate ${isMapped ? 'text-cyan-600 dark:text-cyan-200' : 'text-blue-900 dark:text-blue-300'}`}>{table.tableName}</span>
                           <span className="ml-auto flex items-center gap-1.5 shrink-0">
+                            {hasFilter && (
+                              <FaFilter
+                                className="text-amber-500 dark:text-amber-400"
+                                size={10}
+                                title={`WHERE ${table.whereClause}`}
+                              />
+                            )}
                             {isMapped && (
                               <FaCheck
                                 className="text-cyan-400"

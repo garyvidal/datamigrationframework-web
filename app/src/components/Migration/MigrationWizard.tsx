@@ -1,16 +1,17 @@
-// MigrationWizard — 2-step modal wizard: select source project + MarkLogic connection → configure collection path and start migration.
+// MigrationWizard — 3-step modal wizard: select source project + MarkLogic connection → configure collection path → review row counts → start migration.
 import React, { useState, useEffect } from 'react';
-import { FaCheck, FaChevronRight, FaSpinner, FaTimes, FaPlus } from 'react-icons/fa';
+import { FaCheck, FaChevronRight, FaSpinner, FaTimes, FaPlus, FaExclamationTriangle, FaFilter } from 'react-icons/fa';
 import { getSavedConnections, SavedConnection } from '@/services/SchemaService';
 import { getSavedMarkLogicConnections, SavedMarkLogicConnection } from '@/services/MarkLogicService';
 import { getProjects, ProjectData } from '@/services/ProjectService';
-import { startMigrationJob, DeploymentJob } from '@/services/MigrationService';
+import { startMigrationJob, getMigrationPreview, DeploymentJob, MigrationPreview } from '@/services/MigrationService';
 
-type WizardStep = 'connections' | 'settings';
+type WizardStep = 'connections' | 'settings' | 'summary';
 
 const STEPS: { id: WizardStep; label: string }[] = [
   { id: 'connections', label: 'Connections' },
   { id: 'settings', label: 'Path & Collections' },
+  { id: 'summary', label: 'Summary' },
 ];
 
 const StepIndicator: React.FC<{ current: WizardStep }> = ({ current }) => {
@@ -54,8 +55,10 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
 
   // Step 1 state
   const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [rdbmsConnections, setRdbmsConnections] = useState<SavedConnection[]>([]);
   const [mlConnections, setMlConnections] = useState<SavedMarkLogicConnection[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [selectedSourceConnectionId, setSelectedSourceConnectionId] = useState<string>('');
   const [selectedMlConnectionId, setSelectedMlConnectionId] = useState<string>('');
   const [step1Error, setStep1Error] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,15 +68,29 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
   const [collections, setCollections] = useState<string[]>([]);
   const [newCollection, setNewCollection] = useState('');
   const [step2Error, setStep2Error] = useState<string | null>(null);
+
+  // Step 3 state
+  const [preview, setPreview] = useState<MigrationPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([getProjects(), getSavedMarkLogicConnections()])
-      .then(([projs, mlConns]) => {
+    Promise.all([getProjects(), getSavedMarkLogicConnections(), getSavedConnections()])
+      .then(([projs, mlConns, rdbmsConns]) => {
         setProjects(projs);
         setMlConnections(mlConns);
-        if (projs.length > 0) setSelectedProjectId(projs[0].id ?? '');
+        setRdbmsConnections(rdbmsConns);
         if (mlConns.length > 0) setSelectedMlConnectionId(mlConns[0].id ?? '');
+        if (projs.length > 0) {
+          const firstProj = projs[0];
+          setSelectedProjectId(firstProj.id ?? '');
+          const defaultConn = rdbmsConns.find(
+            (c) => c.id === firstProj.connectionId || c.name === firstProj.connectionName
+          );
+          setSelectedSourceConnectionId(defaultConn?.id ?? rdbmsConns[0]?.id ?? '');
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -89,9 +106,21 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
     return selectedProject.mapping?.documentModel?.root?.xmlName ?? '';
   })();
 
+  const handleProjectChange = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    const proj = projects.find((p) => (p.id ?? p.name) === projectId);
+    if (proj) {
+      const defaultConn = rdbmsConnections.find(
+        (c) => c.id === proj.connectionId || c.name === proj.connectionName
+      );
+      setSelectedSourceConnectionId(defaultConn?.id ?? rdbmsConnections[0]?.id ?? '');
+    }
+  };
+
   const handleStep1Next = () => {
     setStep1Error(null);
     if (!selectedProjectId) { setStep1Error('Select a project'); return; }
+    if (!selectedSourceConnectionId) { setStep1Error('Select a source RDBMS connection'); return; }
     if (!selectedMlConnectionId) { setStep1Error('Select a MarkLogic connection'); return; }
 
     // Pre-fill directory with rootElement variable
@@ -99,6 +128,26 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
       setDirectoryPath(`/{rootElement}/`);
     }
     setStep('settings');
+  };
+
+  const handleStep2Next = async () => {
+    setStep2Error(null);
+    if (!directoryPath.trim()) { setStep2Error('Enter a directory path'); return; }
+
+    setPreviewLoading(true);
+    setPreview(null);
+    setPreviewError(null);
+    setStartError(null);
+    setStep('summary');
+
+    try {
+      const result = await getMigrationPreview(selectedProjectId, selectedSourceConnectionId);
+      setPreview(result);
+    } catch (e) {
+      setPreviewError(e instanceof Error ? e.message : 'Failed to load row counts');
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const addCollection = () => {
@@ -114,20 +163,19 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
   };
 
   const handleStart = async () => {
-    setStep2Error(null);
-    if (!directoryPath.trim()) { setStep2Error('Enter a directory path'); return; }
-
+    setStartError(null);
     setStarting(true);
     try {
       const job = await startMigrationJob({
         projectId: selectedProjectId,
+        sourceConnectionId: selectedSourceConnectionId,
         marklogicConnectionId: selectedMlConnectionId,
         directoryPath: directoryPath.trim(),
         collections,
       });
       onStarted(job);
     } catch (e) {
-      setStep2Error(e instanceof Error ? e.message : 'Failed to start migration job');
+      setStartError(e instanceof Error ? e.message : 'Failed to start migration job');
     } finally {
       setStarting(false);
     }
@@ -139,7 +187,7 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200 dark:border-slate-700">
@@ -175,7 +223,7 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                     ) : (
                       <select
                         value={selectedProjectId}
-                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                        onChange={(e) => handleProjectChange(e.target.value)}
                         className={inputCls}
                       >
                         <option value="">— Select a project —</option>
@@ -190,6 +238,36 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                         {' '}— use <span className="font-mono text-blue-400">{'{rootElement}'}</span> in path
                       </p>
                     )}
+                  </div>
+
+                  {/* Source RDBMS connection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
+                      Source RDBMS Connection *
+                    </label>
+                    {rdbmsConnections.length === 0 ? (
+                      <p className="text-sm text-red-400">No RDBMS connections found. Add one via the Connections menu.</p>
+                    ) : (
+                      <select
+                        value={selectedSourceConnectionId}
+                        onChange={(e) => setSelectedSourceConnectionId(e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="">— Select a connection —</option>
+                        {rdbmsConnections.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    )}
+                    {selectedSourceConnectionId && (() => {
+                      const conn = rdbmsConnections.find((c) => c.id === selectedSourceConnectionId);
+                      return conn ? (
+                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                          {conn.connection.type} — {conn.connection.url}:{conn.connection.port}
+                          {conn.connection.database ? `/${conn.connection.database}` : ''}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
 
                   {/* MarkLogic connection */}
@@ -295,6 +373,12 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                   <span className="text-gray-800 dark:text-white font-medium">{selectedProject?.name}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Source DB</span>
+                  <span className="text-gray-800 dark:text-white font-medium">
+                    {rdbmsConnections.find((c) => c.id === selectedSourceConnectionId)?.name}
+                  </span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-gray-500 dark:text-gray-400">MarkLogic</span>
                   <span className="text-gray-800 dark:text-white font-medium">{selectedMlConn?.name}</span>
                 </div>
@@ -302,6 +386,97 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
 
               {step2Error && (
                 <div className="p-3 bg-red-900 border border-red-700 rounded text-sm text-red-100">{step2Error}</div>
+              )}
+            </div>
+          )}
+
+          {/* ── STEP 3: Summary ── */}
+          {step === 'summary' && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Row counts from <span className="font-medium text-gray-700 dark:text-gray-200">{selectedProject?.name}</span>:
+              </p>
+
+              {previewLoading && (
+                <div className="flex items-center justify-center py-10 gap-3 text-gray-400">
+                  <FaSpinner className="animate-spin" />
+                  <span>Counting rows...</span>
+                </div>
+              )}
+
+              {previewError && (
+                <div className="flex items-start gap-2 p-3 bg-yellow-900/40 border border-yellow-700 rounded text-sm text-yellow-200">
+                  <FaExclamationTriangle className="mt-0.5 shrink-0" size={13} />
+                  <span>Could not load row counts: {previewError}. You can still proceed with the migration.</span>
+                </div>
+              )}
+
+              {preview && (
+                <>
+                  <div className="rounded border border-gray-200 dark:border-slate-600 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-100 dark:bg-slate-700 text-left">
+                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Schema</th>
+                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Table</th>
+                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Role</th>
+                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Filter</th>
+                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300 text-right whitespace-nowrap">Rows</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.tables.map((t, i) => (
+                          <tr
+                            key={i}
+                            className="border-t border-gray-100 dark:border-slate-600 odd:bg-white even:bg-gray-50 dark:odd:bg-slate-800 dark:even:bg-slate-700"
+                          >
+                            <td className="px-3 py-2 text-gray-500 dark:text-gray-400 font-mono text-xs">{t.schema ?? '—'}</td>
+                            <td className="px-3 py-2 text-gray-800 dark:text-white font-mono text-xs">{t.tableName}</td>
+                            <td className="px-3 py-2">
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                                t.role === 'root'
+                                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                  : 'bg-gray-100 text-gray-600 dark:bg-slate-600 dark:text-gray-300'
+                              }`}>
+                                {t.role}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">
+                              {t.whereClause ? (
+                                <span
+                                  title={`WHERE ${t.whereClause}`}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-700 max-w-[160px]"
+                                >
+                                  <FaFilter size={9} className="shrink-0" />
+                                  <span className="truncate font-mono">{t.whereClause}</span>
+                                </span>
+                              ) : (
+                                <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-white whitespace-nowrap">
+                              {t.rowCount.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700">
+                          <td colSpan={4} className="px-3 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                            Total documents to migrate
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-gray-900 dark:text-white">
+                            {preview.totalRows.toLocaleString()}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {startError && (
+                <div className="p-3 bg-red-900 border border-red-700 rounded text-sm text-red-100">{startError}</div>
               )}
             </div>
           )}
@@ -318,6 +493,15 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                 Back
               </button>
             )}
+            {step === 'summary' && (
+              <button
+                onClick={() => setStep('settings')}
+                disabled={starting}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Back
+              </button>
+            )}
           </div>
           <div className="flex gap-3">
             <button
@@ -329,7 +513,7 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
             {step === 'connections' && (
               <button
                 onClick={handleStep1Next}
-                disabled={loading || !selectedProjectId || !selectedMlConnectionId}
+                disabled={loading || !selectedProjectId || !selectedSourceConnectionId || !selectedMlConnectionId}
                 className="px-5 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
               >
                 Next
@@ -337,8 +521,17 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
             )}
             {step === 'settings' && (
               <button
+                onClick={handleStep2Next}
+                disabled={!directoryPath.trim()}
+                className="px-5 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                Next
+              </button>
+            )}
+            {step === 'summary' && (
+              <button
                 onClick={handleStart}
-                disabled={starting || !directoryPath.trim()}
+                disabled={starting || previewLoading}
                 className="px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2"
               >
                 {starting ? <><FaSpinner className="animate-spin" size={13} /> Starting...</> : 'Start Migration'}

@@ -49,3 +49,11 @@ Once all the wizard steps are completed, Show me a loading page, that tracks pro
 2. Create Required Models for deployment structure and repository that stores deployment jobs
 3. Write infrastructure code to batch load all the data using a step based process in batches.
 
+# Fixes FrontEnd
+1. Relationships in diagram do not work when relationship is in another schema. Relationships should work across schemas.
+2. SchemaTables should support a filter option.
+3. `Add tables` option should support same filter operation.
+4. `Synthetic Joins` seems to not work anymore.  Likely due to fullName usage.
+
+# Fixes Backend
+1. Backend does not support fullName(ex. database.schema.table) format

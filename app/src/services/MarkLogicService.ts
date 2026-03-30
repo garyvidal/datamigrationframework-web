@@ -1,4 +1,4 @@
-const SERVICE_URL = 'http://localhost:9390';
+const SERVICE_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:9390';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

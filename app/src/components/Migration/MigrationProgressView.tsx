@@ -4,6 +4,7 @@ import { FaCheck, FaTimes, FaSpinner, FaDatabase } from 'react-icons/fa';
 import {
   DeploymentJob,
   MigrationProgress,
+  subscribeMigrationProgress,
   getMigrationProgress,
   deleteMigrationJob,
 } from '@/services/MigrationService';
@@ -36,24 +37,21 @@ const MigrationProgressView: React.FC<MigrationProgressViewProps> = ({ job, onCl
     errorMessage: job.errorMessage,
     errors: job.errors,
   });
-  const intervalRef = useRef<number | null>(null);
+  const esRef = useRef<EventSource | null>(null);
   const [closing, setClosing] = useState(false);
 
   const isDone = progress.status === 'COMPLETED' || progress.status === 'FAILED' || progress.status === 'CANCELLED';
 
   useEffect(() => {
     if (isDone) return;
-    const poll = async () => {
-      try {
-        const p = await getMigrationProgress(job.id);
-        setProgress(p);
-      } catch {
-        // ignore transient errors
-      }
-    };
-    poll();
-    intervalRef.current = window.setInterval(poll, 1000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    esRef.current = subscribeMigrationProgress(
+      job.id,
+      (p) => setProgress(p),
+      (p) => setProgress(p),
+      // On unexpected SSE error, do one final poll to capture terminal state
+      () => { getMigrationProgress(job.id).then(setProgress).catch(() => {}); },
+    );
+    return () => { esRef.current?.close(); esRef.current = null; };
   }, [job.id, isDone]);
 
   const pct = progress.totalRecords > 0
@@ -61,7 +59,8 @@ const MigrationProgressView: React.FC<MigrationProgressViewProps> = ({ job, onCl
     : progress.status === 'COMPLETED' ? 100 : 0;
 
   const handleClose = async () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    esRef.current?.close();
+    esRef.current = null;
     if (isDone) {
       setClosing(true);
       try { await deleteMigrationJob(job.id); } catch { /* ignore */ }

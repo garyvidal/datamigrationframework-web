@@ -1,4 +1,4 @@
-const SCHEMA_SERVICE_URL = 'http://localhost:9390';
+const SCHEMA_SERVICE_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:9390';
 
 /** Naming case options matching Java NamingCase enum (serialized as uppercase). */
 export type NamingCase = 'SNAKE' | 'CAMEL' | 'PASCAL' | 'DASH';
@@ -22,7 +22,9 @@ export interface ProjectTable {
     columnType?: { columnType: string; precision?: number; scale?: number };
     foreignKey?: { name: string };
   }>;
-  relationships?: Array<{ toTable: string; [key: string]: unknown }>;
+  relationships?: Array<{ fromColumn: string; toTable: string; toColumn: string }>;
+  /** Optional SQL WHERE clause (without the WHERE keyword) to filter rows from this table. */
+  whereClause?: string;
 }
 
 export interface ProjectSchema {
@@ -130,6 +132,8 @@ export interface XmlTableMapping {
   wrapperElementName?: string;
   /** InlineElement: id of the parent XmlTableMapping this is nested inside. */
   parentRef?: string;
+  /** When multiple FKs exist between parent and child, specifies the FK column to use for joining. */
+  joinColumn?: string;
   /** CUSTOM: JavaScript function body that computes the element value from referenced fields. */
   customFunction?: string;
   /** CUSTOM: the XSD type returned by the custom function. */
@@ -161,6 +165,8 @@ export interface JsonTableMapping {
   jsonName: string;
   mappingType: JsonTableMappingType;
   parentRef?: string;
+  /** When multiple FKs exist between parent and child, specifies the FK column to use for joining. */
+  joinColumn?: string;
   columns: JsonColumnMapping[];
 }
 

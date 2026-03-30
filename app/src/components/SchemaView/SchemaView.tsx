@@ -16,9 +16,10 @@ import ProjectPanel from "../Panels/ProjectPanel";
 import AddTablesModal from "../Project/AddTablesModal";
 import DatabaseConnectionForm from "../Project/DatabaseConnectionForm";
 import { ConfigDialog } from "../Project/ConfigDialog";
+import { TableFilterDialog } from "../Project/TableFilterDialog";
 import GenerateXmlModal from "../Project/GenerateXmlModal";
 import GenerateJsonModal from "../Project/GenerateJsonModal";
-import { DbTable, DbSchema, DbDatabase, DbConnection, SchemaAnalysisRequest, analyzeSchema, resolveConnection } from "@/services/SchemaService";
+import { DbTable, DbSchema, DbConnection, SchemaAnalysisRequest, analyzeSchema } from "@/services/SchemaService";
 import { ProjectData, ProjectSettings, ProjectMapping, XmlTableMapping, SyntheticJoin, saveProject } from "@/services/ProjectService";
 import SyntheticJoinDialog from "./SyntheticJoinDialog";
 import { convertCaseFromSetting } from "@/lib/CaseConverter";
@@ -189,6 +190,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
     const [pendingLayout, setPendingLayout] = useState<LayoutAlgorithm | null>(null);
     const [contextMenu, setContextMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null);
     const [edgeContextMenu, setEdgeContextMenu] = useState<{ edgeId: string; x: number; y: number } | null>(null);
+    const [filterDialog, setFilterDialog] = useState<{ nodeId: string } | null>(null);
     const [showAddTablesModal, setShowAddTablesModal] = useState(false);
     const [showConfigDialog, setShowConfigDialog] = useState(false);
     const [showGenerateModal, setShowGenerateModal] = useState(false);
@@ -206,7 +208,6 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const visibleNodeIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
-    const projectDbCache = useRef<Map<string, DbDatabase>>(new Map());
     const diagramSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isRestoringRef = useRef(false);
     const diagramRef = useRef<HTMLDivElement>(null);
@@ -250,7 +251,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
 
         if (savedNodes.length > 0) {
             const restored = savedNodes.map((sn) => {
-                const dotIdx = sn.id.indexOf(".");
+                const dotIdx = sn.id.lastIndexOf(".");
                 const schemaName = sn.id.substring(0, dotIdx);
                 const tableName = sn.id.substring(dotIdx + 1);
                 const table = activeProject?.schemas[schemaName]?.tables?.[tableName];
@@ -265,6 +266,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                             type: col.type ?? "",
                         })),
                         collapsed: sn.collapsed ?? false,
+                        whereClause: table?.whereClause,
                     },
                 };
             });
@@ -336,24 +338,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
         const nodeId = `${schemaName}.${tableName}`;
         if (nodes.some(n => n.id === nodeId)) return;
 
-        let db = projectDbCache.current.get(activeProject.connectionId ?? activeProject.connectionName);
-        if (!db) {
-            try {
-                const savedConn = await resolveConnection(activeProject.connectionId, activeProject.connectionName);
-                db = await analyzeSchema({
-                    connectionId: savedConn.id,
-                    connection: savedConn.connection,
-                    includeTables: true,
-                    includeColumns: true,
-                    includeRelationships: false,
-                });
-                projectDbCache.current.set(activeProject.connectionId ?? activeProject.connectionName, db);
-            } catch (e) {
-                console.error("Failed to fetch schema for project:", e);
-                return;
-            }
-        }
-        const table = db.schemas[schemaName]?.tables?.[tableName];
+        const table = activeProject.schemas[schemaName]?.tables?.[tableName];
         if (!table) return;
 
         const idx = nodes.length;
@@ -364,6 +349,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
             data: {
                 label: tableName,
                 schema: Object.values(table.columns ?? {}).map(col => ({ title: col.name, type: col.type ?? "", primaryKey: col.primaryKey })),
+                whereClause: table.whereClause,
             },
         };
         const updatedNodes = [...nodes, newNode];
@@ -375,7 +361,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
         const existingEdgeIds = new Set(edges.map(e => e.id));
 
         for (const rel of outgoingRels) {
-            const targetNode = nodes.find(n => n.id.substring(n.id.indexOf(".") + 1) === rel.toTable);
+            const targetNode = nodes.find(n => n.id === rel.toTable);
             if (targetNode) {
                 const edgeId = `${nodeId}->${targetNode.id}`;
                 if (!existingEdgeIds.has(edgeId)) {
@@ -386,18 +372,32 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
         }
 
         for (const existingNode of nodes) {
-            const dotIdx = existingNode.id.indexOf(".");
+            const dotIdx = existingNode.id.lastIndexOf(".");
             const existingSchemaName = existingNode.id.substring(0, dotIdx);
             const existingTableName = existingNode.id.substring(dotIdx + 1);
             const existingRels = activeProject.schemas[existingSchemaName]?.tables?.[existingTableName]?.relationships ?? [];
             for (const rel of existingRels) {
-                if (rel.toTable === tableName) {
+                if (rel.toTable === `${schemaName}.${tableName}`) {
                     const edgeId = `${existingNode.id}->${nodeId}`;
                     if (!existingEdgeIds.has(edgeId)) {
                         newEdges.push({ id: edgeId, source: existingNode.id, target: nodeId });
                         existingEdgeIds.add(edgeId);
                     }
                 }
+            }
+        }
+
+        // Wire synthetic join edges that connect the new node to/from any existing node
+        for (const join of activeProject.syntheticJoins ?? []) {
+            const sourceId = `${join.sourceSchema}.${join.sourceTable}`;
+            const targetId = `${join.targetSchema}.${join.targetTable}`;
+            const edgeId = `synth-${sourceId}->${targetId}`;
+            if (existingEdgeIds.has(edgeId)) continue;
+            const newIsSource = sourceId === nodeId && nodes.some(n => n.id === targetId);
+            const newIsTarget = targetId === nodeId && nodes.some(n => n.id === sourceId);
+            if (newIsSource || newIsTarget) {
+                newEdges.push({ id: edgeId, source: sourceId, target: targetId });
+                existingEdgeIds.add(edgeId);
             }
         }
 
@@ -414,15 +414,11 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
 
     const handleNodeClick = useCallback((_event: React.MouseEvent, node: ReactFlowNode) => {
         if (!activeProject) return;
-        const dotIdx = node.id.indexOf('.');
+        const dotIdx = node.id.lastIndexOf('.');
         const schemaName = node.id.substring(0, dotIdx);
         const tableName = node.id.substring(dotIdx + 1);
-        if (mappedTableKeys.has(node.id)) {
-            setHighlightedMappingTable({ tableName, schemaName });
-        } else {
-            setPendingMappingTable({ tableName, schemaName });
-        }
-    }, [activeProject, mappedTableKeys]);
+        setPendingMappingTable({ tableName, schemaName });
+    }, [activeProject]);
 
     const handleNodeContextMenu = useCallback((event: React.MouseEvent, node: ReactFlowNode) => {
         event.preventDefault();
@@ -435,6 +431,41 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
         setEdges(prev => prev.filter(e => e.source !== nodeId && e.target !== nodeId));
         setContextMenu(null);
     }, []);
+
+    const handleSaveFilter = useCallback(async (nodeId: string, whereClause: string | undefined) => {
+        setFilterDialog(null);
+        if (!activeProject) return;
+        const dotIdx = nodeId.lastIndexOf('.');
+        const schemaName = nodeId.substring(0, dotIdx);
+        const tableName = nodeId.substring(dotIdx + 1);
+        const updatedProject: ProjectData = {
+            ...activeProject,
+            schemas: {
+                ...activeProject.schemas,
+                [schemaName]: {
+                    ...activeProject.schemas[schemaName],
+                    tables: {
+                        ...activeProject.schemas[schemaName]?.tables,
+                        [tableName]: {
+                            ...activeProject.schemas[schemaName]?.tables?.[tableName],
+                            tableName,
+                            whereClause,
+                        },
+                    },
+                },
+            },
+        };
+        // Update node data so filter icon reflects new state
+        setNodes(prev => prev.map(n =>
+            n.id === nodeId ? { ...n, data: { ...n.data, whereClause } } : n
+        ));
+        try {
+            await saveProject(updatedProject);
+            onProjectSchemasUpdated?.(updatedProject);
+        } catch (err) {
+            console.error("Failed to save table filter", err);
+        }
+    }, [activeProject, onProjectSchemasUpdated]);
 
     const handleEdgeContextMenu = useCallback((event: React.MouseEvent, edge: ReactFlowEdge) => {
         if (!edge.id.startsWith('synth-')) return;
@@ -926,12 +957,19 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
         {contextMenu && ReactDOM.createPortal(
             <div
                 style={{ position: "fixed", top: contextMenu.y, left: contextMenu.x, zIndex: 9999 }}
-                className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[160px]"
+                className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg py-1 min-w-[180px]"
                 onMouseLeave={() => setContextMenu(null)}
             >
                 <div className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-slate-600 mb-1 truncate max-w-[200px]">
-                    {contextMenu.nodeId.substring(contextMenu.nodeId.indexOf(".") + 1)}
+                    {contextMenu.nodeId.substring(contextMenu.nodeId.lastIndexOf(".") + 1)}
                 </div>
+                <button
+                    className="w-full text-left px-3 py-1.5 text-sm text-amber-600 dark:text-amber-400 hover:bg-gray-100 dark:hover:bg-slate-600 transition flex items-center gap-2"
+                    onClick={() => { setContextMenu(null); setFilterDialog({ nodeId: contextMenu.nodeId }); }}
+                >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M2 4a1 1 0 0 1 1-1h18a1 1 0 0 1 .78 1.63l-7 9A1 1 0 0 1 14 14v5.38a1 1 0 0 1-.55.9l-4 2A1 1 0 0 1 8 21.38V14a1 1 0 0 1-.22-.62l-7-9A1 1 0 0 1 2 4z"/></svg>
+                    Set WHERE Filter
+                </button>
                 <button
                     className="w-full text-left px-3 py-1.5 text-sm text-red-500 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-600 hover:text-red-700 dark:hover:text-red-300 transition"
                     onClick={() => handleRemoveNode(contextMenu.nodeId)}
@@ -941,6 +979,29 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
             </div>,
             document.body
         )}
+
+        {filterDialog && activeProject && (() => {
+            const dotIdx = filterDialog.nodeId.lastIndexOf('.');
+            const schemaName = filterDialog.nodeId.substring(0, dotIdx);
+            const tableName = filterDialog.nodeId.substring(dotIdx + 1);
+            const tableData = activeProject.schemas[schemaName]?.tables?.[tableName];
+            const currentFilter = tableData?.whereClause;
+            const columns = Object.values(tableData?.columns ?? {}).map(col => ({
+                name: col.name,
+                type: col.type,
+                primaryKey: col.primaryKey,
+            }));
+            return (
+                <TableFilterDialog
+                    tableName={tableName}
+                    schemaName={schemaName}
+                    currentFilter={currentFilter}
+                    columns={columns}
+                    onSave={(wc) => handleSaveFilter(filterDialog.nodeId, wc)}
+                    onClose={() => setFilterDialog(null)}
+                />
+            );
+        })()}
         </>
     );
 };

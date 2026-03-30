@@ -1,4 +1,4 @@
-const SCHEMA_SERVICE_URL = 'http://localhost:9390';
+const SCHEMA_SERVICE_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:9390';
 
 export enum ConnectionType {
   Postgres = 'Postgres',
@@ -167,7 +167,12 @@ export const analyzeSchema = async (request: SchemaAnalysisRequest): Promise<DbD
       body: JSON.stringify({ ...request, connection: conn }),
     });
     if (!response.ok) {
-      throw new Error(`Failed to analyze schema: ${response.statusText}`);
+      let message = response.statusText;
+      try {
+        const body = await response.json();
+        if (body?.error) message = body.error;
+      } catch { /* ignore parse errors */ }
+      throw new Error(`Failed to analyze schema: ${message}`);
     }
     return await response.json();
   } catch (error) {

@@ -15,7 +15,7 @@ import {
 } from '@/services/SchemaService';
 import { saveProject } from '@/services/ProjectService';
 import EnvironmentBadge from './EnvironmentBadge';
-import { FaCheck, FaChevronRight, FaSpinner, FaTable, FaFolder, FaDatabase, FaTimes } from 'react-icons/fa';
+import { FaCheck, FaChevronRight, FaChevronDown, FaSpinner, FaTable, FaFolder, FaDatabase, FaTimes, FaSearch } from 'react-icons/fa';
 
 type ConnectionStatus = 'idle' | 'testing' | 'success' | 'failed';
 
@@ -152,6 +152,7 @@ const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ onClose, onSa
   const [loadingSchemas, setLoadingSchemas] = useState(false);
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [selectedTables, setSelectedTables] = useState<SelectedTables>({});
+  const [tableFilter, setTableFilter] = useState('');
 
   // Step 3 state
   const [saving, setSaving] = useState(false);
@@ -253,10 +254,11 @@ const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ onClose, onSa
       });
       setDatabase(db);
       const initial: SelectedTables = {};
-      for (const [schName, schema] of Object.entries(db.schemas)) {
-        initial[schName] = new Set(Object.keys(schema.tables ?? {}));
+      for (const schName of Object.keys(db.schemas)) {
+        initial[schName] = new Set();
       }
       setSelectedTables(initial);
+      setTableFilter('');
     } catch (e) {
       setSchemaError(e instanceof Error ? e.message : 'Failed to connect to database');
     } finally {
@@ -692,31 +694,71 @@ const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ onClose, onSa
               )}
               {!loadingSchemas && database && (
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm text-gray-400">
-                      {totalSelected} table{totalSelected !== 1 ? 's' : ''} selected
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="relative flex-1">
+                      <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={11} />
+                      <input
+                        type="text"
+                        value={tableFilter}
+                        onChange={(e) => setTableFilter(e.target.value)}
+                        placeholder="Filter by schema or table name..."
+                        className="w-full pl-7 pr-7 py-1.5 text-sm bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      {tableFilter && (
+                        <button
+                          onClick={() => setTableFilter('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        >
+                          <FaTimes size={11} />
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-sm text-gray-400 shrink-0">
+                      {totalSelected} selected
                     </span>
                   </div>
                   <div className="space-y-2">
-                    {Object.entries(database.schemas).map(([schemaName, schema]) => {
-                      const tableNames = Object.keys(schema.tables ?? {});
-                      const selectedCount = selectedTables[schemaName]?.size ?? 0;
-                      const allSelected = selectedCount === tableNames.length && tableNames.length > 0;
-                      const someSelected = selectedCount > 0 && !allSelected;
-                      return (
-                        <SchemaTreeNode
-                          key={schemaName}
-                          schemaName={schemaName}
-                          tableNames={tableNames}
-                          selectedCount={selectedCount}
-                          allSelected={allSelected}
-                          someSelected={someSelected}
-                          selectedSet={selectedTables[schemaName] ?? new Set()}
-                          onToggleSchema={() => toggleSchema(schemaName, tableNames)}
-                          onToggleTable={(t) => toggleTable(schemaName, t)}
-                        />
-                      );
-                    })}
+                    {(() => {
+                      const filterLower = tableFilter.toLowerCase();
+                      return Object.entries(database.schemas)
+                        .filter(([schemaName, schema]) => {
+                          if (!filterLower) return true;
+                          if (schemaName.toLowerCase().includes(filterLower)) return true;
+                          return Object.keys(schema.tables ?? {}).some((t) =>
+                            t.toLowerCase().includes(filterLower)
+                          );
+                        })
+                        .map(([schemaName, schema]) => {
+                          const allTableNames = Object.keys(schema.tables ?? {});
+                          const visibleTableNames = filterLower
+                            ? allTableNames.filter(
+                                (t) =>
+                                  t.toLowerCase().includes(filterLower) ||
+                                  schemaName.toLowerCase().includes(filterLower)
+                              )
+                            : allTableNames;
+                          const selectedCount = selectedTables[schemaName]?.size ?? 0;
+                          const allSelected =
+                            allTableNames.length > 0 &&
+                            allTableNames.every((t) => selectedTables[schemaName]?.has(t));
+                          const someSelected = selectedCount > 0 && !allSelected;
+                          return (
+                            <SchemaTreeNode
+                              key={schemaName}
+                              schemaName={schemaName}
+                              tableNames={visibleTableNames}
+                              totalTableCount={allTableNames.length}
+                              selectedCount={selectedCount}
+                              allSelected={allSelected}
+                              someSelected={someSelected}
+                              selectedSet={selectedTables[schemaName] ?? new Set()}
+                              isFiltering={!!filterLower}
+                              onToggleSchema={() => toggleSchema(schemaName, allTableNames)}
+                              onToggleTable={(t) => toggleTable(schemaName, t)}
+                            />
+                          );
+                        });
+                    })()}
                   </div>
                 </div>
               )}
@@ -832,10 +874,12 @@ const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ onClose, onSa
 interface SchemaTreeNodeProps {
   schemaName: string;
   tableNames: string[];
+  totalTableCount: number;
   selectedCount: number;
   allSelected: boolean;
   someSelected: boolean;
   selectedSet: Set<string>;
+  isFiltering: boolean;
   onToggleSchema: () => void;
   onToggleTable: (tableName: string) => void;
 }
@@ -843,14 +887,17 @@ interface SchemaTreeNodeProps {
 const SchemaTreeNode: React.FC<SchemaTreeNodeProps> = ({
   schemaName,
   tableNames,
+  totalTableCount,
   selectedCount,
   allSelected,
   someSelected,
   selectedSet,
+  isFiltering,
   onToggleSchema,
   onToggleTable,
 }) => {
   const checkboxRef = useRef<HTMLInputElement>(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (checkboxRef.current) {
@@ -858,43 +905,56 @@ const SchemaTreeNode: React.FC<SchemaTreeNodeProps> = ({
     }
   }, [someSelected]);
 
+  const isOpen = isFiltering || expanded;
+
   return (
     <div className="bg-gray-50 dark:bg-slate-700 rounded overflow-hidden border border-gray-200 dark:border-transparent">
-      <div
-        className="flex items-center gap-2 px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-slate-600 dark:hover:bg-slate-500 cursor-pointer select-none"
-        onClick={onToggleSchema}
-      >
+      <div className="flex items-center gap-2 px-3 py-2 bg-gray-200 dark:bg-slate-600 select-none">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white shrink-0"
+          title={isOpen ? 'Collapse' : 'Expand'}
+        >
+          {isOpen ? <FaChevronDown size={11} /> : <FaChevronRight size={11} />}
+        </button>
         <input
           ref={checkboxRef}
           type="checkbox"
           checked={allSelected}
           onChange={onToggleSchema}
-          className="accent-blue-500 w-4 h-4"
+          className="accent-blue-500 w-4 h-4 cursor-pointer"
           onClick={(e) => e.stopPropagation()}
         />
-        <FaFolder className="text-yellow-500" size={14} />
-        <span className="text-sm font-semibold text-gray-800 dark:text-white flex-1">{schemaName}</span>
-        <span className="text-xs text-gray-500 dark:text-gray-400">{selectedCount}/{tableNames.length}</span>
+        <button
+          className="flex items-center gap-2 flex-1 text-left hover:opacity-80"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <FaFolder className="text-yellow-500 shrink-0" size={14} />
+          <span className="text-sm font-semibold text-gray-800 dark:text-white">{schemaName}</span>
+        </button>
+        <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{selectedCount}/{totalTableCount}</span>
       </div>
-      <div className="divide-y divide-gray-200 dark:divide-slate-600/40">
-        {tableNames.map((tableName) => (
-          <div
-            key={tableName}
-            className="flex items-center gap-2 px-3 py-1.5 pl-8 hover:bg-gray-100 dark:hover:bg-slate-600 cursor-pointer select-none"
-            onClick={() => onToggleTable(tableName)}
-          >
-            <input
-              type="checkbox"
-              checked={selectedSet.has(tableName)}
-              onChange={() => onToggleTable(tableName)}
-              className="accent-blue-500 w-4 h-4"
-              onClick={(e) => e.stopPropagation()}
-            />
-            <FaTable className="text-blue-400" size={11} />
-            <span className="text-sm text-gray-700 dark:text-gray-200">{tableName}</span>
-          </div>
-        ))}
-      </div>
+      {isOpen && (
+        <div className="divide-y divide-gray-200 dark:divide-slate-600/40">
+          {tableNames.map((tableName) => (
+            <div
+              key={tableName}
+              className="flex items-center gap-2 px-3 py-1.5 pl-8 hover:bg-gray-100 dark:hover:bg-slate-600 cursor-pointer select-none"
+              onClick={() => onToggleTable(tableName)}
+            >
+              <input
+                type="checkbox"
+                checked={selectedSet.has(tableName)}
+                onChange={() => onToggleTable(tableName)}
+                className="accent-blue-500 w-4 h-4"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <FaTable className="text-blue-400" size={11} />
+              <span className="text-sm text-gray-700 dark:text-gray-200">{tableName}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

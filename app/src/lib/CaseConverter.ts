@@ -16,11 +16,26 @@ export function convertCaseFromSetting(input: string, projectNamingCase: string)
     return convertCase(input, 'snake', toLocalCase(projectNamingCase));
 }
 
+/** Detect whether a string looks like camelCase or PascalCase (contains an uppercase letter after position 0). */
+function looksLikeCamelOrPascal(input: string): boolean {
+    return /[A-Z]/.test(input.slice(1));
+}
+
 function tokenize(input: string, from: NamingCase): string[] {
     let parts: string[];
     switch (from) {
-        case 'snake': parts = input.split('_'); break;
-        case 'dash':  parts = input.split('-'); break;
+        case 'snake': {
+            // If the value contains no underscores but has uppercase letters, treat it as camel/pascal
+            if (!input.includes('_') && looksLikeCamelOrPascal(input)) {
+                parts = input.split(/(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/);
+            } else {
+                parts = input.split('_');
+            }
+            break;
+        }
+        case 'dash':
+            parts = input.split('-');
+            break;
         case 'camel':
         case 'pascal':
             parts = input.split(/(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/);

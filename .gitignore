@@ -31,3 +31,8 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Docker files
+*.bak
+**/shadowtraffic/*
+license.env
