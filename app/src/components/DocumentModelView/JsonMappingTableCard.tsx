@@ -253,12 +253,28 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                         <span className="text-xs text-gray-500">"</span>
                     </div>
                     {isInline && (
-                        <div className="flex items-center gap-2">
-                            <label className="text-xs text-gray-500 w-24 shrink-0">Nested Under</label>
-                            <span className="text-xs font-mono text-violet-700 bg-violet-50 border border-violet-200 dark:text-violet-300 dark:bg-violet-900/20 dark:border-violet-800 px-2 py-1 rounded">
-                                {parentJsonName || '(none)'}
-                            </span>
-                        </div>
+                        <>
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-500 w-24 shrink-0">Nested Under</label>
+                                <span className="text-xs font-mono text-violet-700 bg-violet-50 border border-violet-200 dark:text-violet-300 dark:bg-violet-900/20 dark:border-violet-800 px-2 py-1 rounded">
+                                    {parentJsonName || '(none)'}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-500 w-24 shrink-0">Embed</label>
+                                <button
+                                    onClick={() => onChange({ ...mapping, embed: !mapping.embed })}
+                                    className={`px-2 py-1 rounded text-xs font-medium border transition ${
+                                        mapping.embed
+                                            ? 'border-violet-600 bg-violet-900/40 text-violet-300 hover:border-violet-400'
+                                            : 'border-slate-500 bg-slate-700 text-gray-500 hover:border-slate-400'
+                                    }`}
+                                    title="When enabled, skip the wrapper key and embed properties directly into the parent object"
+                                >
+                                    {mapping.embed ? 'Enabled' : 'Disabled'}
+                                </button>
+                            </div>
+                        </>
                     )}
                 </div>
             )}

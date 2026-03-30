@@ -23,6 +23,18 @@ function renderTableToLines(
     const normalKids = topKids.filter(e => e.mappingType !== 'CUSTOM');
     const customKids = topKids.filter(e => e.mappingType === 'CUSTOM');
 
+    // Embed mode: skip the wrapper element, render columns/children directly at current indent
+    if (table.embed) {
+        for (const col of elemCols) {
+            const val = col.sourceColumn ? `{${col.sourceColumn}}` : '{computed}';
+            lines.push(`${pad}<${col.xmlName}>${val}</${col.xmlName}>`);
+        }
+        for (const inline of inlineKids) {
+            lines.push(...renderTableToLines(inline, indent, inlinesByParent));
+        }
+        return lines;
+    }
+
     const attrStr    = attrCols.map(a => ` ${a.xmlName}="{${a.sourceColumn}}"`).join('');
     const hasChildren = elemCols.length > 0 || inlineKids.length > 0 || topKids.length > 0;
 

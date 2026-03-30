@@ -23,7 +23,12 @@ function buildObject(
 
     // Inline children
     for (const inline of inlinesByParent.get(table.id ?? '') ?? []) {
-        obj[inline.jsonName] = buildObject(inline, inlinesByParent);
+        if (inline.embed) {
+            // Embed: spread properties directly into this object, skip the wrapper key
+            Object.assign(obj, buildObject(inline, inlinesByParent));
+        } else {
+            obj[inline.jsonName] = buildObject(inline, inlinesByParent);
+        }
     }
 
     // Top-level Array children

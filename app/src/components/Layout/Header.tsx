@@ -23,7 +23,7 @@ function Header({ onNewProject, onOpenProject, onConnections, onMarkLogicConnect
         <div className="flex items-center gap-2">
           <button
             onClick={toggleTheme}
-            className="flex items-center gap-2 px-3 py-2 text-white text-sm rounded hover:bg-white/10 transition"
+            className="flex items-center gap-2 px-3 py-2 text-white text-sm rounded hover:bg-white/10 transition cursor-pointer"
             title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
           >
             {theme === 'dark' ? <FaSun size={14} /> : <FaMoon size={14} />}
@@ -31,7 +31,7 @@ function Header({ onNewProject, onOpenProject, onConnections, onMarkLogicConnect
           {onMarkLogicConnections && (
             <button
               onClick={onMarkLogicConnections}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm font-medium rounded hover:bg-white/20 transition"
+              className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm font-medium rounded hover:bg-white/20 transition cursor-pointer"
             >
               <FaDatabase className="text-amber-400" size={13} />
               MarkLogic
@@ -40,7 +40,7 @@ function Header({ onNewProject, onOpenProject, onConnections, onMarkLogicConnect
           {onConnections && (
             <button
               onClick={onConnections}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm font-medium rounded hover:bg-white/20 transition"
+              className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm font-medium rounded hover:bg-white/20 transition cursor-pointer"
             >
               <FaDatabase size={13} />
               Connections
@@ -49,7 +49,7 @@ function Header({ onNewProject, onOpenProject, onConnections, onMarkLogicConnect
           {onOpenProject && (
             <button
               onClick={onOpenProject}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm font-medium rounded hover:bg-white/20 transition"
+              className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm font-medium rounded hover:bg-white/20 transition cursor-pointer"
             >
               <FaFolderOpen size={13} />
               Open Project
@@ -58,7 +58,7 @@ function Header({ onNewProject, onOpenProject, onConnections, onMarkLogicConnect
           {onMigrate && (
             <button
               onClick={onMigrate}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition cursor-pointer"
             >
               <FaUpload size={13} />
               Migrate
@@ -67,7 +67,7 @@ function Header({ onNewProject, onOpenProject, onConnections, onMarkLogicConnect
           {onNewProject && (
             <button
               onClick={onNewProject}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition cursor-pointer"
             >
               <FaPlus size={12} />
               New Project

@@ -132,6 +132,8 @@ export interface XmlTableMapping {
   wrapperElementName?: string;
   /** InlineElement: id of the parent XmlTableMapping this is nested inside. */
   parentRef?: string;
+  /** InlineElement: when true, skip the wrapper element and embed columns directly into the parent. */
+  embed?: boolean;
   /** When multiple FKs exist between parent and child, specifies the FK column to use for joining. */
   joinColumn?: string;
   /** CUSTOM: JavaScript function body that computes the element value from referenced fields. */
@@ -165,6 +167,8 @@ export interface JsonTableMapping {
   jsonName: string;
   mappingType: JsonTableMappingType;
   parentRef?: string;
+  /** InlineObject: when true, skip the wrapper key and embed properties directly into the parent object. */
+  embed?: boolean;
   /** When multiple FKs exist between parent and child, specifies the FK column to use for joining. */
   joinColumn?: string;
   columns: JsonColumnMapping[];
