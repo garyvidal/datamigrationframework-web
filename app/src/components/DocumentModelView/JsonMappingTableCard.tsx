@@ -49,6 +49,7 @@ interface JsonMappingTableCardProps {
 
 export default function JsonMappingTableCard({ mapping, onChange, onRemove, parentJsonName, availableColumns = [] }: JsonMappingTableCardProps) {
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [expandedSourceIndex, setExpandedSourceIndex] = useState(-1);
     const [dragIndex, setDragIndex] = useState(-1);
     const [insertBefore, setInsertBefore] = useState(-1);
@@ -234,10 +235,34 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                     {settingsOpen ? <FaChevronUp size={9} /> : <FaChevronDown size={9} />}
                 </button>
 
-                <button onClick={onRemove} className="shrink-0 text-gray-400 hover:text-red-400 transition" title="Remove table mapping">
+                <button onClick={() => setShowDeleteConfirm(true)} className="shrink-0 text-gray-400 hover:text-red-400 transition" title="Remove table mapping">
                     <FaTimes size={12} />
                 </button>
             </div>
+
+            {showDeleteConfirm && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
+                    <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-xl px-6 py-5 w-80">
+                        <p className="text-sm text-gray-800 dark:text-gray-100 font-medium mb-1">Remove table mapping?</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 font-mono">{mapping.sourceSchema}.{mapping.sourceTable}</p>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => { setShowDeleteConfirm(false); onRemove(); }}
+                                className="px-3 py-1.5 text-xs rounded bg-red-600 hover:bg-red-700 text-white transition"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body,
+            )}
 
             {/* Settings panel */}
             {settingsOpen && (

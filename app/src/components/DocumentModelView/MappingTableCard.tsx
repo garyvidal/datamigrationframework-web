@@ -183,11 +183,13 @@ const DND_KEY = 'application/x-row-index';
 
 export default function MappingTableCard({ mapping, onChange, onRemove, parentXmlName, namespaces = [], availableColumns = [] }: MappingTableCardProps) {
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     /** Pending namespace prefix to propagate to columns — non-null triggers the cascade prompt. */
     const [pendingNsPropagate, setPendingNsPropagate] = useState<string | null>(null);
     /** Whether the restore-column dropdown is open. */
     const [restoreOpen, setRestoreOpen] = useState(false);
     const restoreButtonRef = useRef<HTMLButtonElement>(null);
+    const restoreDropdownRef = useRef<HTMLDivElement>(null);
     const [restoreDropdownPos, setRestoreDropdownPos] = useState<{ top: number; right: number } | null>(null);
     /** Index of custom field row whose fn editor is open (-1 = none). */
     const [expandedFnIndex, setExpandedFnIndex] = useState(-1);
@@ -216,7 +218,10 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
     useEffect(() => {
         if (!restoreOpen) return;
         const handler = (e: MouseEvent) => {
-            if (restoreButtonRef.current && !restoreButtonRef.current.contains(e.target as Node)) {
+            if (
+                restoreButtonRef.current && !restoreButtonRef.current.contains(e.target as Node) &&
+                restoreDropdownRef.current && !restoreDropdownRef.current.contains(e.target as Node)
+            ) {
                 setRestoreOpen(false);
             }
         };
@@ -409,6 +414,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                         </button>
                         {restoreOpen && restoreDropdownPos && ReactDOM.createPortal(
                             <div
+                                ref={restoreDropdownRef}
                                 style={{ position: 'fixed', top: restoreDropdownPos.top, right: restoreDropdownPos.right }}
                                 className="z-[9999] min-w-[160px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg overflow-hidden"
                             >
@@ -443,13 +449,37 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                 </button>
 
                 <button
-                    onClick={onRemove}
+                    onClick={() => setShowDeleteConfirm(true)}
                     className="shrink-0 text-gray-400 hover:text-red-400 transition"
                     title="Remove entire table mapping"
                 >
                     <FaTimes size={12} />
                 </button>
             </div>
+
+            {showDeleteConfirm && ReactDOM.createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
+                    <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-xl px-6 py-5 w-80">
+                        <p className="text-sm text-gray-800 dark:text-gray-100 font-medium mb-1">Remove table mapping?</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 font-mono">{mapping.sourceSchema}.{mapping.sourceTable}</p>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => { setShowDeleteConfirm(false); onRemove(); }}
+                                className="px-3 py-1.5 text-xs rounded bg-red-600 hover:bg-red-700 text-white transition"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body,
+            )}
 
             {/* ── Settings panel ────────────────────────────────────────────── */}
             {settingsOpen && (
