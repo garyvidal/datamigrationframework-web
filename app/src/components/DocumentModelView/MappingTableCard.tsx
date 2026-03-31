@@ -389,7 +389,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                         &lt;{mapping.xmlName || '…'}&gt;
                     </span>
                     {!isCustom && (
-                        <span className="text-xs text-gray-500 ml-1 shrink-0 truncate max-w-[110px]"
+                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-1 shrink-0 truncate max-w-[110px]"
                               title={`${mapping.sourceSchema}.${mapping.sourceTable}`}>
                             {mapping.sourceSchema}.{mapping.sourceTable}
                         </span>
@@ -406,7 +406,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                             className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition border ${
                                 restoreOpen
                                     ? 'border-cyan-500 bg-cyan-50 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 dark:border-cyan-600'
-                                    : 'border-gray-300 text-gray-500 hover:text-cyan-600 hover:border-cyan-500 dark:border-slate-600 dark:text-gray-400 dark:hover:text-cyan-300 dark:hover:border-cyan-600'
+                                    : 'border-gray-300 text-gray-500 hover:text-cyan-600 hover:border-cyan-500 dark:border-slate-600 dark:text-gray-300 dark:hover:text-cyan-300 dark:hover:border-cyan-600'
                             }`}
                         >
                             <FaPlus size={8} />
@@ -418,7 +418,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                                 style={{ position: 'fixed', top: restoreDropdownPos.top, right: restoreDropdownPos.right }}
                                 className="z-[9999] min-w-[160px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg overflow-hidden"
                             >
-                                <div className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-700 font-medium">
+                                <div className="px-2 py-1 text-xs text-gray-500 dark:text-gray-300 border-b border-gray-100 dark:border-slate-700 font-medium">
                                     Restore column
                                 </div>
                                 {restorableColumns.map(col => (
@@ -442,7 +442,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                     className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition border ${
                         settingsOpen
                             ? 'border-gray-400 bg-gray-200 text-gray-800 dark:border-slate-400 dark:bg-slate-600 dark:text-white'
-                            : 'border-gray-300 bg-transparent text-gray-500 hover:text-gray-700 hover:border-gray-400 dark:border-slate-600 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-slate-500'
+                            : 'border-gray-300 bg-transparent text-gray-500 hover:text-gray-700 hover:border-gray-400 dark:border-slate-600 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:border-slate-500'
                     }`}
                 >
                     {settingsOpen ? <FaChevronUp size={9} /> : <FaChevronDown size={9} />}
@@ -461,7 +461,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
                     <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-xl px-6 py-5 w-80">
                         <p className="text-sm text-gray-800 dark:text-gray-100 font-medium mb-1">Remove table mapping?</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 font-mono">{mapping.sourceSchema}.{mapping.sourceTable}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-300 mb-4 font-mono">{mapping.sourceSchema}.{mapping.sourceTable}</p>
                         <div className="flex justify-end gap-2">
                             <button
                                 onClick={() => setShowDeleteConfirm(false)}
@@ -486,7 +486,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                 <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800/70 space-y-3">
 
                     <div className="flex items-center gap-2">
-                        <label className="text-xs text-gray-500 dark:text-gray-500 w-24 shrink-0">Element Name</label>
+                        <label className="text-xs text-gray-500 dark:text-gray-300 w-24 shrink-0">Element Name</label>
                         <span className="text-xs text-gray-500">&lt;</span>
                         {namespaces.length > 0 && (
                             <select
@@ -551,13 +551,13 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                     {isInline && (
                         <>
                             <div className="flex items-center gap-2">
-                                <label className="text-xs text-gray-500 w-24 shrink-0">Nested Under</label>
+                                <label className="text-xs text-gray-500 dark:text-gray-300 w-24 shrink-0">Nested Under</label>
                                 <span className="text-xs font-mono text-violet-300 bg-violet-900/20 border border-violet-800 px-2 py-1 rounded">
                                     {parentXmlName || '(none)'}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <label className="text-xs text-gray-500 w-24 shrink-0">Embed</label>
+                                <label className="text-xs text-gray-500 dark:text-gray-300 w-24 shrink-0">Embed</label>
                                 <button
                                     onClick={() => onChange({ ...mapping, embed: !mapping.embed })}
                                     className={`px-2 py-1 rounded text-xs font-medium border transition ${
@@ -576,7 +576,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                     {isElems && (
                         <>
                             <div className="flex items-center gap-2">
-                                <label className="text-xs text-gray-500 w-24 shrink-0">Wrap In Parent</label>
+                                <label className="text-xs text-gray-500 dark:text-gray-300 w-24 shrink-0">Wrap In Parent</label>
                                 <button
                                     onClick={toggleWrapInParent}
                                     className={`px-2 py-1 rounded text-xs font-medium border transition ${
@@ -590,7 +590,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                             </div>
                             {wrapInParent && (
                                 <div className="flex items-center gap-2">
-                                    <label className="text-xs text-gray-500 w-24 shrink-0">Wrapper Name</label>
+                                    <label className="text-xs text-gray-500 dark:text-gray-300 w-24 shrink-0">Wrapper Name</label>
                                     <span className="text-xs text-gray-500">&lt;</span>
                                     <input
                                         value={mapping.wrapperElementName ?? ''}
@@ -607,7 +607,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                     {isCustom && (
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                                <label className="text-xs text-gray-500 w-24 shrink-0">Return Type</label>
+                                <label className="text-xs text-gray-500 dark:text-gray-300 w-24 shrink-0">Return Type</label>
                                 <select
                                     value={mapping.xmlType ?? 'xs:string'}
                                     onChange={e => onChange({ ...mapping, xmlType: e.target.value as XmlSchemaType })}
@@ -642,7 +642,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
             {/* Drop zone covers the whole column list area */}
             <div onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) resetDrag(); }}>
                 {mapping.columns.length === 0 && (
-                    <div className="px-4 py-3 text-xs text-gray-500 italic">
+                    <div className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 italic">
                         {isCustom ? 'No field references' : 'No columns — all removed'}
                     </div>
                 )}
@@ -786,13 +786,13 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                             {!isCustomCol && !isRef && expandedSourceIndex === i && (
                                 <div className="px-3 py-2 bg-gray-50 dark:bg-slate-800/60 border-t border-gray-100 dark:border-slate-600/50 flex items-center gap-4">
                                     <div className="flex items-center gap-1.5">
-                                        <span className="text-xs text-gray-500">Column</span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">Column</span>
                                         <span className="text-xs font-mono text-gray-700 bg-gray-100 dark:text-gray-300 dark:bg-slate-700 px-1.5 py-0.5 rounded" title={col.sourceColumn}>
                                             {col.sourceColumn}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="text-xs text-gray-500">Type</span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">Type</span>
                                         <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${XML_TYPE_COLOR[col.xmlType] ?? 'bg-slate-700 text-gray-400'}`}>
                                             {col.xmlType}
                                         </span>
@@ -804,7 +804,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                             {isCustomCol && expandedFnIndex === i && (
                                 <div className="px-3 pb-2 pt-1 bg-gray-50 dark:bg-slate-800/60 border-t border-amber-100 dark:border-amber-900/40">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <span className="text-xs text-gray-500">Return Type</span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">Return Type</span>
                                         <select
                                             value={col.xmlType}
                                             onChange={e => {

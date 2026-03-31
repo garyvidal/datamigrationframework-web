@@ -83,7 +83,7 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-600 shrink-0">
                     <FaCode size={13} className="text-amber-400" />
                     <span className="text-sm font-semibold text-white flex-1">Add Custom Element</span>
-                    <button onClick={onCancel} className="text-gray-500 hover:text-gray-300 transition">
+                    <button onClick={onCancel} className="text-gray-300 hover:text-white transition">
                         <FaTimes size={13} />
                     </button>
                 </div>
@@ -91,7 +91,7 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {/* Element name */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-1">Element XML Name</label>
+                        <label className="block text-xs font-medium text-gray-300 mb-1">Element XML Name</label>
                         <input
                             autoFocus
                             value={elementName}
@@ -103,8 +103,8 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
 
                     {/* XML return type */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-1">Return Type</label>
-                        <p className="text-xs text-gray-500 mb-2">The XSD type that the function returns.</p>
+                        <label className="block text-xs font-medium text-gray-300 mb-1">Return Type</label>
+                        <p className="text-xs text-gray-400 mb-2">The XSD type that the function returns.</p>
                         <select
                             value={xmlType}
                             onChange={e => setXmlType(e.target.value as XmlSchemaType)}
@@ -118,12 +118,12 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
 
                     {/* Reference fields */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-1">Reference Fields</label>
-                        <p className="text-xs text-gray-500 mb-2">
+                        <label className="block text-xs font-medium text-gray-300 mb-1">Reference Fields</label>
+                        <p className="text-xs text-gray-400 mb-2">
                             Checked fields will be available as <code className="text-amber-300">fields.fieldName</code> in your function.
                         </p>
                         {allCols.length === 0 ? (
-                            <p className="text-xs text-gray-500 italic px-2 py-2 rounded bg-slate-800/50">
+                            <p className="text-xs text-gray-400 italic px-2 py-2 rounded bg-slate-800/50">
                                 No mapped columns available — add a Root Element or Elements group first.
                             </p>
                         ) : (
@@ -140,13 +140,13 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
                                             className="accent-amber-500 shrink-0"
                                         />
                                         <span className="text-xs font-mono text-gray-200">{col.sourceColumn}</span>
-                                        <span className="text-xs text-gray-500 ml-auto truncate max-w-[160px]">{tableKey}</span>
+                                        <span className="text-xs text-gray-400 ml-auto truncate max-w-[160px]">{tableKey}</span>
                                     </label>
                                 ))}
                             </div>
                         )}
                         {selected.size > 0 && (
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-gray-400 mt-1">
                                 Selected: <span className="text-amber-300 font-mono">{selectedNames}</span>
                             </p>
                         )}
@@ -154,7 +154,7 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
 
                     {/* JS function */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-1">JavaScript Function</label>
+                        <label className="block text-xs font-medium text-gray-300 mb-1">JavaScript Function</label>
                         <textarea
                             value={fnBody}
                             onChange={e => setFnBody(e.target.value)}
@@ -169,7 +169,7 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
                 <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-600 shrink-0">
                     <button
                         onClick={onCancel}
-                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition rounded border border-slate-600 hover:border-slate-400"
+                        className="px-3 py-1.5 text-xs text-gray-300 hover:text-white transition rounded border border-slate-600 hover:border-slate-400"
                     >
                         Cancel
                     </button>

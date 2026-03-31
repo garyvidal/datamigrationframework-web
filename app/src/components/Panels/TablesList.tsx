@@ -70,10 +70,10 @@ const TablesList: React.FC<TablesListProps> = ({ onTableSelect }) => {
               >
                 <div className="flex items-center gap-2">
                   <FaTable className="flex-shrink-0 text-blue-400" />
-                  <span className="text-sm font-semibold text-gray-950 dark:text-cyan-900 truncate">{table.name}</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-cyan-200 truncate">{table.name}</span>
                 </div>
                 {table.schema && (
-                  <div className="text-xs text-gray-900 dark:text-cyan-900 ml-6 truncate">
+                  <div className="text-xs text-gray-600 dark:text-cyan-300 ml-6 truncate">
                     {table.schema}
                   </div>
                 )}

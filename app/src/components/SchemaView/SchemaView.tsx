@@ -810,28 +810,28 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                                     onHighlightedTableConsumed={() => setHighlightedMappingTable(null)}
                                 />
                             ) : selectedTable ? (
-                                <div className="h-full w-full bg-[#1b2a3b] dark:bg-slate-700 text-white overflow-auto">
-                                    <div className="p-4 border-b border-[#0d1520] dark:border-slate-600">
+                                <div className="h-full w-full bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white overflow-auto">
+                                    <div className="p-4 border-b border-gray-200 dark:border-slate-600">
                                         <h3 className="font-semibold text-lg">{selectedTable.tableName}</h3>
-                                        <p className="text-sm text-gray-400">{selectedSchema?.name}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{selectedSchema?.name}</p>
                                     </div>
                                     {selectedTable.columns && Object.keys(selectedTable.columns).length > 0 && (
                                         <div className="p-4">
-                                            <h4 className="font-semibold text-sm mb-3">
+                                            <h4 className="font-semibold text-sm mb-3 text-gray-800 dark:text-gray-100">
                                                 Columns ({Object.keys(selectedTable.columns).length})
                                             </h4>
                                             <div className="space-y-2">
                                                 {Object.values(selectedTable.columns).map((col) => (
-                                                    <div key={col.name} className="text-xs bg-white/10 p-2 rounded">
-                                                        <div className="font-mono font-semibold text-blue-300">{col.name}</div>
-                                                        <div className="text-gray-300">{col.type}</div>
+                                                    <div key={col.name} className="text-xs bg-white dark:bg-white/10 border border-gray-200 dark:border-transparent p-2 rounded">
+                                                        <div className="font-mono font-semibold text-blue-600 dark:text-blue-300">{col.name}</div>
+                                                        <div className="text-gray-600 dark:text-gray-300">{col.type}</div>
                                                         {col.columnType?.columnType && (
-                                                            <div className="text-gray-400">{col.columnType.columnType}</div>
+                                                            <div className="text-gray-500 dark:text-gray-400">{col.columnType.columnType}</div>
                                                         )}
-                                                        <div className="text-gray-500 text-xs mt-1">
-                                                            {col.primaryKey && <span className="bg-green-900 px-2 py-0.5 rounded mr-1">PK</span>}
-                                                            {col.foreignKey && <span className="bg-yellow-900 px-2 py-0.5 rounded mr-1">FK</span>}
-                                                            {col.sequence && <span className="bg-purple-900 px-2 py-0.5 rounded">AUTO</span>}
+                                                        <div className="text-gray-400 dark:text-gray-500 text-xs mt-1">
+                                                            {col.primaryKey && <span className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-0.5 rounded mr-1">PK</span>}
+                                                            {col.foreignKey && <span className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-0.5 rounded mr-1">FK</span>}
+                                                            {col.sequence && <span className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-2 py-0.5 rounded">AUTO</span>}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -840,7 +840,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                                     )}
                                 </div>
                             ) : (
-                                <div className="h-full w-full bg-[#1b2a3b] dark:bg-slate-700 text-gray-400 flex items-center justify-center flex-col gap-3">
+                                <div className="h-full w-full bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-gray-300 flex items-center justify-center flex-col gap-3">
                                     <p className="text-sm">Select a table to view details</p>
                                 </div>
                             )}

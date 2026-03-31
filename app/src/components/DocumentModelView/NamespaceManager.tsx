@@ -77,7 +77,7 @@ export default function NamespaceManager({ namespaces, onChange }: NamespaceMana
                         </span>
                     )}
                 </div>
-                <span className="text-xs text-gray-400">{collapsed ? '▸' : '▾'}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-300">{collapsed ? '▸' : '▾'}</span>
             </button>
 
             {!collapsed && (
@@ -85,10 +85,10 @@ export default function NamespaceManager({ namespaces, onChange }: NamespaceMana
 
                     {/* Default namespace row — always shown */}
                     <div className="flex items-center gap-2">
-                        <span className="w-20 shrink-0 text-xs font-mono text-gray-500 dark:text-gray-400 px-2 py-1 bg-gray-100 dark:bg-slate-700 rounded border border-gray-200 dark:border-slate-600 text-center select-none">
+                        <span className="w-20 shrink-0 text-xs font-mono text-gray-500 dark:text-gray-300 px-2 py-1 bg-gray-100 dark:bg-slate-700 rounded border border-gray-200 dark:border-slate-600 text-center select-none">
                             xmlns
                         </span>
-                        <span className="text-xs text-gray-400 shrink-0">=</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-400 shrink-0">=</span>
                         <input
                             value={defaultNs?.uri ?? ''}
                             onChange={e => setDefaultUri(e.target.value)}
@@ -122,7 +122,7 @@ export default function NamespaceManager({ namespaces, onChange }: NamespaceMana
                                 spellCheck={false}
                                 className="w-20 shrink-0 bg-gray-50 border border-gray-300 rounded px-2 py-1 text-xs font-mono text-gray-800 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:bg-slate-700 dark:border-slate-500 dark:text-white"
                             />
-                            <span className="text-xs text-gray-400 shrink-0">=</span>
+                            <span className="text-xs text-gray-400 dark:text-gray-400 shrink-0">=</span>
                             <input
                                 value={ns.uri}
                                 onChange={e => updateUri(i, e.target.value)}

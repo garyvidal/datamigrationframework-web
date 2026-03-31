@@ -398,7 +398,7 @@ export default function DocumentModelView({
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                     <FaFileCode size={14} className="text-cyan-500 dark:text-cyan-400" />
                     Document Model
-                    <span className="text-xs text-gray-600 dark:text-gray-500">— {project.name}</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-300">— {project.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     {showBothTabs && (
@@ -413,7 +413,7 @@ export default function DocumentModelView({
                         </div>
                     )}
                     {hasMapping && (
-                        <span className="text-xs text-gray-600 dark:text-gray-400">{elementCountLabel}</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-300">{elementCountLabel}</span>
                     )}
                     {hasMapping && (
                         <button
@@ -459,7 +459,7 @@ export default function DocumentModelView({
                                             dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-gray-600"
                                     >
                                         <div className="font-semibold text-sm">Root Element</div>
-                                        <div className="text-xs mt-0.5 text-gray-400 dark:text-gray-400">
+                                        <div className="text-xs mt-0.5 text-gray-500 dark:text-gray-300">
                                             {root
                                                 ? `Root already set to <${root.xmlName}>`
                                                 : 'Creates the top-level XML element for each row'}
@@ -470,7 +470,7 @@ export default function DocumentModelView({
                                         className="w-full text-left px-4 py-3 rounded border border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100 text-gray-800 dark:border-slate-500 dark:bg-slate-800 dark:hover:border-slate-400 dark:hover:bg-slate-700 dark:text-white transition"
                                     >
                                         <div className="font-semibold text-sm">Elements</div>
-                                        <div className="text-xs mt-0.5 text-gray-400">Creates a nested sequence of child elements</div>
+                                        <div className="text-xs mt-0.5 text-gray-500 dark:text-gray-300">Creates a nested sequence of child elements</div>
                                     </button>
                                     <button
                                         onClick={handleInlineElementClick}
@@ -482,7 +482,7 @@ export default function DocumentModelView({
                                             dark:disabled:border-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-gray-600"
                                     >
                                         <div className="font-semibold text-sm">Inline Element</div>
-                                        <div className="text-xs mt-0.5 text-gray-400">
+                                        <div className="text-xs mt-0.5 text-gray-500 dark:text-gray-300">
                                             {parentOptions.length === 0
                                                 ? 'Add a Root or Elements mapping first'
                                                 : validParentOptions.length === 0
@@ -493,7 +493,7 @@ export default function DocumentModelView({
                                 </div>
                                 <button
                                     onClick={handleDismissPopover}
-                                    className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition"
+                                    className="mt-3 w-full text-center text-xs text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white transition"
                                 >
                                     Cancel
                                 </button>
@@ -501,7 +501,7 @@ export default function DocumentModelView({
                         ) : popoverStep === 'inline-parent' ? (
                             <>
                                 <p className="text-sm font-semibold text-gray-800 dark:text-white mb-1">Select Parent</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                <p className="text-xs text-gray-500 dark:text-gray-300 mb-3">
                                     <span className="text-violet-600 dark:text-violet-300 font-mono">{pendingTable.schemaName}.{pendingTable.tableName}</span> will be nested inside:
                                 </p>
                                 <div className="space-y-1 mb-4">
@@ -513,7 +513,7 @@ export default function DocumentModelView({
                                             title={!p.hasRelationship ? 'No table relationship — create a synthetic join first' : undefined}
                                             className={`w-full text-left px-3 py-2 rounded border text-sm font-mono transition ${
                                                 !p.hasRelationship
-                                                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/40 dark:text-gray-600'
+                                                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/40 dark:text-gray-500'
                                                     : inlineParentRef === p.id
                                                         ? 'border-violet-400 bg-violet-50 text-violet-700 dark:border-violet-500 dark:bg-violet-900/40 dark:text-violet-200'
                                                         : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-300 dark:hover:border-slate-400'
@@ -521,7 +521,7 @@ export default function DocumentModelView({
                                         >
                                             <span>{p.label}</span>
                                             {!p.hasRelationship && (
-                                                <span className="ml-2 text-xs text-gray-400 dark:text-gray-600 font-sans">no relationship</span>
+                                                <span className="ml-2 text-xs text-gray-400 dark:text-gray-400 font-sans">no relationship</span>
                                             )}
                                         </button>
                                     ))}
@@ -529,7 +529,7 @@ export default function DocumentModelView({
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => setPopoverStep('type')}
-                                        className="flex-1 px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-500 hover:text-gray-800 hover:border-gray-400 dark:border-slate-600 dark:text-gray-400 dark:hover:text-white dark:hover:border-slate-400 transition"
+                                        className="flex-1 px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:text-gray-800 hover:border-gray-400 dark:border-slate-600 dark:text-gray-300 dark:hover:text-white dark:hover:border-slate-400 transition"
                                     >
                                         Back
                                     </button>
@@ -549,7 +549,7 @@ export default function DocumentModelView({
                         ) : (
                             <>
                                 <p className="text-sm font-semibold text-gray-800 dark:text-white mb-1">Select Relationship</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                <p className="text-xs text-gray-500 dark:text-gray-300 mb-3">
                                     Multiple foreign keys exist between these tables. Choose which one to use:
                                 </p>
                                 <div className="space-y-1 mb-4">
@@ -575,7 +575,7 @@ export default function DocumentModelView({
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => setPopoverStep('inline-parent')}
-                                        className="flex-1 px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-500 hover:text-gray-800 hover:border-gray-400 dark:border-slate-600 dark:text-gray-400 dark:hover:text-white dark:hover:border-slate-400 transition"
+                                        className="flex-1 px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:text-gray-800 hover:border-gray-400 dark:border-slate-600 dark:text-gray-300 dark:hover:text-white dark:hover:border-slate-400 transition"
                                     >
                                         Back
                                     </button>
@@ -606,10 +606,10 @@ export default function DocumentModelView({
                 />
 
                 {!hasMapping && (
-                    <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500">
+                    <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500 dark:text-gray-300">
                         <FaFileCode size={32} className="opacity-30" />
                         <p className="text-sm">Click a table in the left panel to start mapping</p>
-                        <p className="text-xs text-gray-600">You'll be asked whether it's a Root Element, Elements, or Inline Element</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">You'll be asked whether it's a Root Element, Elements, or Inline Element</p>
                     </div>
                 )}
 
@@ -621,7 +621,7 @@ export default function DocumentModelView({
                         : false;
                     return (
                         <div>
-                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 px-1">Root Element</div>
+                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider mb-1.5 px-1">Root Element</div>
                             <div
                                 ref={el => el ? cardRefs.current.set(key, el) : cardRefs.current.delete(key)}
                                 className={isHighlighted ? 'rounded ring-2 ring-cyan-400 ring-offset-1 ring-offset-white dark:ring-offset-slate-800' : ''}
@@ -641,7 +641,7 @@ export default function DocumentModelView({
                 {/* Elements + Inline Elements */}
                 {normalElements.length > 0 && (
                     <div>
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 px-1 mt-4">Elements</div>
+                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider mb-1.5 px-1 mt-4">Elements</div>
                         <div
                             className="space-y-0"
                             onDragOver={e => { if (e.dataTransfer.types.includes(DND_CARD_KEY)) e.preventDefault(); }}
@@ -740,7 +740,7 @@ export default function DocumentModelView({
                 {/* Custom elements */}
                 {customElements.length > 0 && (
                     <div>
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 px-1 mt-4">Custom Elements</div>
+                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider mb-1.5 px-1 mt-4">Custom Elements</div>
                         <div className="space-y-2">
                             {customElements.map((el, i) => {
                                 const fullIndex = (elements ?? []).indexOf(el);
