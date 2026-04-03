@@ -271,6 +271,63 @@ export interface JsonPreviewResponse {
   errors: string[];
 }
 
+// ── Migration Package ─────────────────────────────────────────────────────────
+
+export interface ImportResult {
+  projectId: string;
+  projectName: string;
+  projectCreated: boolean;
+  sourceConnectionId?: string;
+  sourceConnectionName?: string;
+  sourceConnectionCreated: boolean;
+  marklogicConnectionId?: string;
+  marklogicConnectionName?: string;
+  marklogicConnectionCreated: boolean;
+  warnings: string[];
+}
+
+/**
+ * Triggers a browser download of a migration package JSON file for the given project.
+ * Optionally bundles a source connection and/or MarkLogic connection (passwords excluded).
+ */
+export const downloadPackage = (
+  projectId: string,
+  sourceConnectionId?: string,
+  marklogicConnectionId?: string,
+): void => {
+  const params = new URLSearchParams();
+  if (sourceConnectionId) params.set('sourceConnectionId', sourceConnectionId);
+  if (marklogicConnectionId) params.set('marklogicConnectionId', marklogicConnectionId);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  window.location.href = `${SCHEMA_SERVICE_URL}/v1/packages/export/${encodeURIComponent(projectId)}${query}`;
+};
+
+/**
+ * Imports a migration package. Creates the project and connections if they don't exist.
+ * Optionally supplies plaintext passwords for the imported connections.
+ */
+export const importPackage = async (
+  file: File,
+  sourcePassword?: string,
+  marklogicPassword?: string,
+): Promise<ImportResult> => {
+  const text = await file.text();
+  const params = new URLSearchParams();
+  if (sourcePassword) params.set('sourcePassword', sourcePassword);
+  if (marklogicPassword) params.set('marklogicPassword', marklogicPassword);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetch(`${SCHEMA_SERVICE_URL}/v1/packages/import${query}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: text,
+  });
+  if (!response.ok) {
+    const msg = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to import package: ${msg}`);
+  }
+  return response.json();
+};
+
 export const generateJsonPreview = async (projectId: string, limit: number = 10): Promise<JsonPreviewResponse> => {
   const response = await fetch(
     `${SCHEMA_SERVICE_URL}/v1/projects/${encodeURIComponent(projectId)}/generate/json/preview`,

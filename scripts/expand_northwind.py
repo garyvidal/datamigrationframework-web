@@ -29,7 +29,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="Expand Northwind DB to target size")
     p.add_argument("--target-gb",  type=float, default=10.0)
     p.add_argument("--host",       default="localhost")
-    p.add_argument("--port",       type=int, default=55432)
+    p.add_argument("--port",       type=int, default=5433)
     p.add_argument("--dbname",     default="northwind")
     p.add_argument("--user",       default="postgres")
     p.add_argument("--password",   default="postgres")

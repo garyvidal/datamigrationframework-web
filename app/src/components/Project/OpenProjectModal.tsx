@@ -1,7 +1,11 @@
-// OpenProjectModal — Modal listing saved projects with open, rename, delete, and new-project actions.
+// OpenProjectModal — Modal listing saved projects with open, rename, delete, export-package, and new-project actions.
+// Footer provides an Import Package button.
 import React, { useEffect, useRef, useState } from 'react';
-import { FaFolderOpen, FaTimes, FaTrash, FaPlus, FaPencilAlt } from 'react-icons/fa';
-import { ProjectData, getProjects, deleteProject, saveProject } from '@/services/ProjectService';
+import { FaFolderOpen, FaTimes, FaTrash, FaPlus, FaPencilAlt, FaDownload, FaUpload } from 'react-icons/fa';
+import { ProjectData, getProjects, deleteProject, saveProject, downloadPackage, ImportResult } from '@/services/ProjectService';
+import { getSavedConnections, SavedConnection } from '@/services/SchemaService';
+import { getSavedMarkLogicConnections, SavedMarkLogicConnection } from '@/services/MarkLogicService';
+import ImportPackageModal from './ImportPackageModal';
 
 interface OpenProjectModalProps {
   onOpen: (project: ProjectData) => void;
@@ -10,6 +14,14 @@ interface OpenProjectModalProps {
   onRenamed?: (oldName: string, newName: string) => void;
   onNewProject?: () => void;
   alreadyOpenNames: string[];
+}
+
+/** Minimal inline export picker shown when the download icon is clicked. */
+interface ExportPickerState {
+  projectId: string;
+  projectName: string;
+  sourceConnectionId: string;
+  marklogicConnectionId: string;
 }
 
 export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed, onNewProject, alreadyOpenNames }: OpenProjectModalProps) {
@@ -22,6 +34,15 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
   const [renameValue, setRenameValue] = useState('');
   const [renaming, setRenaming] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Export package
+  const [exportPicker, setExportPicker] = useState<ExportPickerState | null>(null);
+  const [dbConnections, setDbConnections] = useState<SavedConnection[]>([]);
+  const [mlConnections, setMlConnections] = useState<SavedMarkLogicConnection[]>([]);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
+
+  // Import package
+  const [showImport, setShowImport] = useState(false);
 
   useEffect(() => {
     if (renamingName && renameInputRef.current) {
@@ -36,6 +57,40 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load projects'))
       .finally(() => setLoading(false));
   }, []);
+
+  const loadConnections = async () => {
+    if (dbConnections.length > 0 || mlConnections.length > 0) return;
+    setConnectionsLoading(true);
+    try {
+      const [db, ml] = await Promise.all([getSavedConnections(), getSavedMarkLogicConnections()]);
+      setDbConnections(db);
+      setMlConnections(ml);
+    } finally {
+      setConnectionsLoading(false);
+    }
+  };
+
+  const openExportPicker = async (project: ProjectData) => {
+    setConfirmDelete(null);
+    setRenamingName(null);
+    await loadConnections();
+    setExportPicker({
+      projectId: project.id ?? project.name,
+      projectName: project.name,
+      sourceConnectionId: project.connectionId ?? '',
+      marklogicConnectionId: '',
+    });
+  };
+
+  const handleExportDownload = () => {
+    if (!exportPicker) return;
+    downloadPackage(
+      exportPicker.projectId,
+      exportPicker.sourceConnectionId || undefined,
+      exportPicker.marklogicConnectionId || undefined,
+    );
+    setExportPicker(null);
+  };
 
   const handleRename = async (project: ProjectData) => {
     const newName = renameValue.trim();
@@ -67,143 +122,247 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
     }
   };
 
+  const handleImported = (result: ImportResult) => {
+    // Refresh the project list after a successful import
+    getProjects().then(setProjects).catch(() => {});
+  };
+
+  const selectCls =
+    'w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-gray-800 dark:text-white border border-gray-300 dark:border-slate-500 rounded focus:outline-none focus:ring-1 focus:ring-blue-500';
+
   return (
-    <div className="dark fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-slate-700 rounded-lg shadow-2xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-600">
-          <h2 className="text-gray-800 dark:text-white font-semibold text-lg">Open Project</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-white">
-            <FaTimes />
-          </button>
-        </div>
+    <>
+      <div className="dark fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-slate-700 rounded-lg shadow-2xl w-full max-w-md mx-4">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-600">
+            <h2 className="text-gray-800 dark:text-white font-semibold text-lg">Open Project</h2>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-white">
+              <FaTimes />
+            </button>
+          </div>
 
-        <div className="px-6 py-4 max-h-96 overflow-y-auto">
-          {loading && <p className="text-gray-400 text-sm">Loading projects...</p>}
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          {!loading && !error && projects.length === 0 && (
-            <div className="flex flex-col items-center gap-4 py-6 text-center">
-              <p className="text-gray-400 text-sm">No saved projects found.</p>
-              {onNewProject && (
-                <button
-                  onClick={() => { onClose(); onNewProject(); }}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition"
-                >
-                  <FaPlus size={12} /> Create New Project
-                </button>
-              )}
-            </div>
-          )}
-          {!loading && !error && projects.length > 0 && (
-            <ul className="space-y-2">
-              {projects.map((project) => {
-                const isOpen = alreadyOpenNames.includes(project.name);
-                const isConfirming = confirmDelete === project.name;
-                const tableCount = Object.values(project.schemas).reduce(
-                  (sum, s) => sum + Object.keys(s.tables ?? {}).length,
-                  0
-                );
-                const isRenaming = renamingName === project.name;
-                return (
-                  <li key={project.name} className="flex items-stretch gap-2">
-                    {isRenaming ? (
-                      <>
-                        <input
-                          ref={renameInputRef}
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleRename(project);
-                            if (e.key === 'Escape') setRenamingName(null);
-                          }}
-                          className="flex-1 px-3 py-2 bg-white text-gray-800 text-sm rounded border border-gray-300 focus:outline-none focus:border-blue-400 dark:bg-slate-800 dark:text-white dark:border-slate-500"
-                        />
-                        <button
-                          onClick={() => handleRename(project)}
-                          disabled={renaming}
-                          className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition disabled:opacity-50 shrink-0"
-                        >
-                          {renaming ? '...' : 'Save'}
-                        </button>
-                        <button
-                          onClick={() => setRenamingName(null)}
-                          className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-slate-500 dark:hover:bg-slate-400 dark:text-white rounded transition shrink-0"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => { if (!isOpen) onOpen(project); }}
-                          disabled={isOpen}
-                          className={`flex-1 text-left px-4 py-3 rounded flex items-start gap-3 transition ${
-                            isOpen
-                              ? 'bg-gray-100 dark:bg-slate-600 opacity-50 cursor-default'
-                              : 'bg-gray-100 hover:bg-gray-200 dark:bg-slate-600 dark:hover:bg-slate-500 cursor-pointer'
-                          }`}
-                        >
-                          <FaFolderOpen className="text-yellow-400 mt-0.5 shrink-0" size={16} />
-                          <div className="min-w-0">
-                            <div className="text-gray-800 dark:text-white text-sm font-medium truncate">{project.name}</div>
-                            <div className="text-gray-400 text-xs mt-0.5">
-                              {Object.keys(project.schemas).length} schema{Object.keys(project.schemas).length !== 1 ? 's' : ''} &bull; {tableCount} table{tableCount !== 1 ? 's' : ''}
-                              {project.connectionName && <> &bull; {project.connectionName}</>}
+          <div className="px-6 py-4 max-h-96 overflow-y-auto">
+            {loading && <p className="text-gray-400 text-sm">Loading projects...</p>}
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+            {!loading && !error && projects.length === 0 && (
+              <div className="flex flex-col items-center gap-4 py-6 text-center">
+                <p className="text-gray-400 text-sm">No saved projects found.</p>
+                {onNewProject && (
+                  <button
+                    onClick={() => { onClose(); onNewProject(); }}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition"
+                  >
+                    <FaPlus size={12} /> Create New Project
+                  </button>
+                )}
+              </div>
+            )}
+            {!loading && !error && projects.length > 0 && (
+              <ul className="space-y-2">
+                {projects.map((project) => {
+                  const isOpen = alreadyOpenNames.includes(project.name);
+                  const isConfirming = confirmDelete === project.name;
+                  const tableCount = Object.values(project.schemas).reduce(
+                    (sum, s) => sum + Object.keys(s.tables ?? {}).length,
+                    0
+                  );
+                  const isRenaming = renamingName === project.name;
+                  const isExporting = exportPicker?.projectName === project.name;
+
+                  return (
+                    <li key={project.name} className="space-y-1">
+                      {isRenaming ? (
+                        <div className="flex items-stretch gap-2">
+                          <input
+                            ref={renameInputRef}
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRename(project);
+                              if (e.key === 'Escape') setRenamingName(null);
+                            }}
+                            className="flex-1 px-3 py-2 bg-white text-gray-800 text-sm rounded border border-gray-300 focus:outline-none focus:border-blue-400 dark:bg-slate-800 dark:text-white dark:border-slate-500"
+                          />
+                          <button
+                            onClick={() => handleRename(project)}
+                            disabled={renaming}
+                            className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition disabled:opacity-50 shrink-0"
+                          >
+                            {renaming ? '...' : 'Save'}
+                          </button>
+                          <button
+                            onClick={() => setRenamingName(null)}
+                            className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-slate-500 dark:hover:bg-slate-400 dark:text-white rounded transition shrink-0"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-stretch gap-2">
+                          <button
+                            onClick={() => { if (!isOpen) onOpen(project); }}
+                            disabled={isOpen}
+                            className={`flex-1 text-left px-4 py-3 rounded flex items-start gap-3 transition ${
+                              isOpen
+                                ? 'bg-gray-100 dark:bg-slate-600 opacity-50 cursor-default'
+                                : 'bg-gray-100 hover:bg-gray-200 dark:bg-slate-600 dark:hover:bg-slate-500 cursor-pointer'
+                            }`}
+                          >
+                            <FaFolderOpen className="text-yellow-400 mt-0.5 shrink-0" size={16} />
+                            <div className="min-w-0">
+                              <div className="text-gray-800 dark:text-white text-sm font-medium truncate">{project.name}</div>
+                              <div className="text-gray-400 text-xs mt-0.5">
+                                {Object.keys(project.schemas).length} schema{Object.keys(project.schemas).length !== 1 ? 's' : ''} &bull; {tableCount} table{tableCount !== 1 ? 's' : ''}
+                                {project.connectionName && <> &bull; {project.connectionName}</>}
+                              </div>
+                              {isOpen && <div className="text-cyan-400 text-xs mt-0.5">Already open</div>}
                             </div>
-                            {isOpen && <div className="text-cyan-400 text-xs mt-0.5">Already open</div>}
-                          </div>
-                        </button>
+                          </button>
 
-                        <button
-                          onClick={() => { setRenamingName(project.name); setRenameValue(project.name); setConfirmDelete(null); }}
-                          className="shrink-0 px-3 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-gray-400 dark:hover:text-white transition"
-                          title={`Rename ${project.name}`}
-                        >
-                          <FaPencilAlt size={12} />
-                        </button>
+                          {/* Export package */}
+                          <button
+                            onClick={() => isExporting ? setExportPicker(null) : openExportPicker(project)}
+                            className={`shrink-0 px-3 rounded transition ${
+                              isExporting
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-blue-600 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-gray-400 dark:hover:text-blue-300'
+                            }`}
+                            title="Export as package"
+                          >
+                            <FaDownload size={12} />
+                          </button>
 
-                        {isConfirming ? (
-                          <div className="flex items-center gap-1 shrink-0">
+                          {/* Rename */}
+                          <button
+                            onClick={() => { setRenamingName(project.name); setRenameValue(project.name); setConfirmDelete(null); setExportPicker(null); }}
+                            className="shrink-0 px-3 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-gray-400 dark:hover:text-white transition"
+                            title={`Rename ${project.name}`}
+                          >
+                            <FaPencilAlt size={12} />
+                          </button>
+
+                          {/* Delete */}
+                          {isConfirming ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => handleDelete(project)}
+                                disabled={deleting}
+                                className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded transition disabled:opacity-50"
+                              >
+                                {deleting ? '...' : 'Delete'}
+                              </button>
+                              <button
+                                onClick={() => setConfirmDelete(null)}
+                                className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-slate-500 dark:hover:bg-slate-400 dark:text-white rounded transition"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
                             <button
-                              onClick={() => handleDelete(project)}
-                              disabled={deleting}
-                              className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded transition disabled:opacity-50"
+                              onClick={() => { setConfirmDelete(project.name); setExportPicker(null); }}
+                              className="shrink-0 px-3 rounded bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-700 dark:bg-slate-600 dark:hover:bg-red-800 dark:text-gray-400 dark:hover:text-white transition"
+                              title={`Delete ${project.name}`}
                             >
-                              {deleting ? '...' : 'Delete'}
+                              <FaTrash size={12} />
                             </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Inline export picker */}
+                      {isExporting && exportPicker && (
+                        <div className="ml-1 p-3 bg-blue-50 dark:bg-slate-800 rounded-lg border border-blue-200 dark:border-slate-600 space-y-2">
+                          <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
+                            Export package for <strong>{exportPicker.projectName}</strong>
+                          </p>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                              Source connection <span className="text-gray-400">(optional)</span>
+                            </label>
+                            {connectionsLoading ? (
+                              <p className="text-xs text-gray-400">Loading...</p>
+                            ) : (
+                              <select
+                                value={exportPicker.sourceConnectionId}
+                                onChange={(e) => setExportPicker(p => p ? { ...p, sourceConnectionId: e.target.value } : p)}
+                                className={selectCls}
+                              >
+                                <option value="">— None —</option>
+                                {dbConnections.map(c => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                              MarkLogic connection <span className="text-gray-400">(optional)</span>
+                            </label>
+                            {connectionsLoading ? (
+                              <p className="text-xs text-gray-400">Loading...</p>
+                            ) : (
+                              <select
+                                value={exportPicker.marklogicConnectionId}
+                                onChange={(e) => setExportPicker(p => p ? { ...p, marklogicConnectionId: e.target.value } : p)}
+                                className={selectCls}
+                              >
+                                <option value="">— None —</option>
+                                {mlConnections.map(c => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                          <div className="flex justify-end gap-2 pt-1">
                             <button
-                              onClick={() => setConfirmDelete(null)}
-                              className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-slate-500 dark:hover:bg-slate-400 dark:text-white rounded transition"
+                              onClick={() => setExportPicker(null)}
+                              className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition"
                             >
                               Cancel
                             </button>
+                            <button
+                              onClick={handleExportDownload}
+                              className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition flex items-center gap-1"
+                            >
+                              <FaDownload size={10} /> Download
+                            </button>
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmDelete(project.name)}
-                            className="shrink-0 px-3 rounded bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-700 dark:bg-slate-600 dark:hover:bg-red-800 dark:text-gray-400 dark:hover:text-white transition"
-                            title={`Delete ${project.name}`}
-                          >
-                            <FaTrash size={12} />
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
 
-        <div className="px-6 py-3 border-t border-gray-200 dark:border-slate-600 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white transition"
-          >
-            Cancel
-          </button>
+          <div className="px-6 py-3 border-t border-gray-200 dark:border-slate-600 flex items-center justify-between">
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-blue-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-gray-300 dark:hover:text-blue-300 rounded transition"
+            >
+              <FaUpload size={11} /> Import Package
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white transition"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {showImport && (
+        <ImportPackageModal
+          onClose={() => setShowImport(false)}
+          onImported={(result) => {
+            handleImported(result);
+            setShowImport(false);
+          }}
+        />
+      )}
+    </>
   );
 }

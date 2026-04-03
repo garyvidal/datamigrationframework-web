@@ -1,6 +1,6 @@
 services:
-  db:
-    container_name: db
+  dbpg:
+    container_name: dbpg
     image: postgres:latest
     environment:
       POSTGRES_DB: northwind
@@ -12,9 +12,9 @@ services:
       - ./northwind.sql:/docker-entrypoint-initdb.d/northwind.sql
       - ./files:/files
     ports:
-      - 55432:5432
+      - 5433:5432
     networks:
-      - db
+      - dbpg
 
   pgadmin:
     container_name: pgadmin
@@ -32,10 +32,10 @@ services:
     ports:
       - 5050:5050
     networks:
-      - db
+      - dbpg
 
 networks:
-  db:
+  dbpg:
     driver: bridge
 
 volumes:
