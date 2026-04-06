@@ -1,8 +1,9 @@
-// ConfigDialog — Portal dialog for per-project settings: default naming case (SNAKE/CAMEL/PASCAL/DASH) and edge line type.
+// ConfigDialog — Portal dialog for per-project settings: default naming case, edge line type, mapping type, and MarkLogic security.
 import React, { useState } from 'react';
 import * as ReactDOM from 'react-dom';
 import { ConnectionLineType } from '@xyflow/react';
-import { MappingTargetType, NamingCase, ProjectSettings } from '@/services/ProjectService';
+import { MappingTargetType, MarkLogicSecurityConfig, NamingCase, ProjectSettings } from '@/services/ProjectService';
+import SecurityConfigEditor from '@/components/Security/SecurityConfigEditor';
 
 const NAMING_CASES: { value: NamingCase; label: string; example: string }[] = [
     { value: 'SNAKE',  label: 'Snake case',  example: 'my_field_name' },
@@ -25,28 +26,55 @@ const MAPPING_TYPES: { value: MappingTargetType; label: string; description: str
     { value: 'BOTH', label: 'XML + JSON', description: 'Generate both XML and JSON documents' },
 ];
 
+type ConfigTab = 'general' | 'security';
+
 interface ConfigDialogProps {
     projectName: string;
     settings: ProjectSettings;
     connectionLineType: ConnectionLineType;
     mappingType: MappingTargetType;
-    onSave: (settings: ProjectSettings, connectionLineType: ConnectionLineType, mappingType: MappingTargetType) => void;
+    securityConfig?: MarkLogicSecurityConfig;
+    onSave: (
+        settings: ProjectSettings,
+        connectionLineType: ConnectionLineType,
+        mappingType: MappingTargetType,
+        securityConfig: MarkLogicSecurityConfig,
+    ) => void;
     onClose: () => void;
 }
 
-export function ConfigDialog({ projectName, settings, connectionLineType, mappingType, onSave, onClose }: ConfigDialogProps) {
+export function ConfigDialog({
+    projectName,
+    settings,
+    connectionLineType,
+    mappingType,
+    securityConfig,
+    onSave,
+    onClose,
+}: ConfigDialogProps) {
+    const [activeTab, setActiveTab] = useState<ConfigTab>('general');
     const [defaultCasing, setDefaultCasing] = useState<NamingCase>(settings.defaultCasing ?? 'SNAKE');
     const [lineType, setLineType] = useState<ConnectionLineType>(connectionLineType);
     const [selectedMappingType, setSelectedMappingType] = useState<MappingTargetType>(mappingType ?? 'XML');
+    const [security, setSecurity] = useState<MarkLogicSecurityConfig>(securityConfig ?? {});
 
     const handleSave = () => {
-        onSave({ ...settings, defaultCasing, connectionLineType: lineType }, lineType, selectedMappingType);
+        onSave({ ...settings, defaultCasing, connectionLineType: lineType }, lineType, selectedMappingType, security);
     };
+
+    const tabCls = (tab: ConfigTab) =>
+        `px-4 py-2 text-sm font-medium border-b-2 transition ${
+            activeTab === tab
+                ? 'border-cyan-500 text-cyan-600 dark:text-cyan-300'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+        }`;
 
     const dialog = (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-slate-700 rounded-lg shadow-2xl w-full max-w-md mx-4">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-600">
+            <div className="bg-white dark:bg-slate-700 rounded-lg shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
+
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-600 shrink-0">
                     <div>
                         <h2 className="text-gray-800 dark:text-white font-semibold text-lg">Project Settings</h2>
                         <p className="text-gray-400 text-xs mt-0.5">{projectName}</p>
@@ -59,86 +87,111 @@ export function ConfigDialog({ projectName, settings, connectionLineType, mappin
                     </button>
                 </div>
 
-                <div className="px-6 py-5 space-y-5">
-                    {/* Mapping Type */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                            Document Mapping Type
-                        </label>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                            Choose which document format(s) to generate from this project's relational data.
-                        </p>
-                        <div className="flex gap-2">
-                            {MAPPING_TYPES.map(mt => (
-                                <button
-                                    key={mt.value}
-                                    onClick={() => setSelectedMappingType(mt.value)}
-                                    title={mt.description}
-                                    className={`flex-1 px-3 py-2 rounded border text-sm font-medium transition ${
-                                        selectedMappingType === mt.value
-                                            ? 'border-cyan-500 bg-cyan-900/30 text-cyan-700 dark:text-cyan-200'
-                                            : 'border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-slate-500 hover:text-gray-700 dark:hover:text-gray-200'
-                                    }`}
-                                >
-                                    {mt.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Default Casing */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                            Default Field Casing
-                        </label>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                            Applied when generating MarkLogic document field names from database columns.
-                        </p>
-                        <div className="space-y-2">
-                            {NAMING_CASES.map(nc => (
-                                <label
-                                    key={nc.value}
-                                    className={`flex items-center justify-between px-3 py-2 rounded cursor-pointer border transition ${
-                                        defaultCasing === nc.value
-                                            ? 'border-cyan-500 bg-cyan-900/30 text-cyan-700 dark:text-white'
-                                            : 'border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-slate-500'
-                                    }`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="radio"
-                                            name="defaultCasing"
-                                            value={nc.value}
-                                            checked={defaultCasing === nc.value}
-                                            onChange={() => setDefaultCasing(nc.value)}
-                                            className="accent-cyan-500"
-                                        />
-                                        <span className="text-sm">{nc.label}</span>
-                                    </div>
-                                    <span className="text-xs font-mono text-gray-400">{nc.example}</span>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Connection Line Type */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                            Connection Line Style
-                        </label>
-                        <select
-                            value={lineType}
-                            onChange={e => setLineType(e.target.value as ConnectionLineType)}
-                            className="w-full bg-white border border-gray-300 text-gray-800 dark:bg-slate-800 dark:border-slate-600 dark:text-gray-200 text-sm rounded px-3 py-2 focus:outline-none focus:border-cyan-500"
-                        >
-                            {LINE_TYPES.map(lt => (
-                                <option key={lt.value} value={lt.value}>{lt.label}</option>
-                            ))}
-                        </select>
-                    </div>
+                {/* Tabs */}
+                <div className="flex border-b border-gray-200 dark:border-slate-600 px-6 shrink-0">
+                    <button className={tabCls('general')} onClick={() => setActiveTab('general')}>General</button>
+                    <button className={tabCls('security')} onClick={() => setActiveTab('security')}>Security</button>
                 </div>
 
-                <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-slate-600">
+                {/* Body */}
+                <div className="px-6 py-5 overflow-y-auto flex-1">
+
+                    {/* ── General Tab ── */}
+                    {activeTab === 'general' && (
+                        <div className="space-y-5">
+                            {/* Mapping Type */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                                    Document Mapping Type
+                                </label>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                    Choose which document format(s) to generate from this project's relational data.
+                                </p>
+                                <div className="flex gap-2">
+                                    {MAPPING_TYPES.map(mt => (
+                                        <button
+                                            key={mt.value}
+                                            onClick={() => setSelectedMappingType(mt.value)}
+                                            title={mt.description}
+                                            className={`flex-1 px-3 py-2 rounded border text-sm font-medium transition ${
+                                                selectedMappingType === mt.value
+                                                    ? 'border-cyan-500 bg-cyan-900/30 text-cyan-700 dark:text-cyan-200'
+                                                    : 'border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-slate-500 hover:text-gray-700 dark:hover:text-gray-200'
+                                            }`}
+                                        >
+                                            {mt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Default Casing */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                                    Default Field Casing
+                                </label>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                    Applied when generating MarkLogic document field names from database columns.
+                                </p>
+                                <div className="space-y-2">
+                                    {NAMING_CASES.map(nc => (
+                                        <label
+                                            key={nc.value}
+                                            className={`flex items-center justify-between px-3 py-2 rounded cursor-pointer border transition ${
+                                                defaultCasing === nc.value
+                                                    ? 'border-cyan-500 bg-cyan-900/30 text-cyan-700 dark:text-white'
+                                                    : 'border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-slate-500'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="radio"
+                                                    name="defaultCasing"
+                                                    value={nc.value}
+                                                    checked={defaultCasing === nc.value}
+                                                    onChange={() => setDefaultCasing(nc.value)}
+                                                    className="accent-cyan-500"
+                                                />
+                                                <span className="text-sm">{nc.label}</span>
+                                            </div>
+                                            <span className="text-xs font-mono text-gray-400">{nc.example}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Connection Line Type */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                                    Connection Line Style
+                                </label>
+                                <select
+                                    value={lineType}
+                                    onChange={e => setLineType(e.target.value as ConnectionLineType)}
+                                    className="w-full bg-white border border-gray-300 text-gray-800 dark:bg-slate-800 dark:border-slate-600 dark:text-gray-200 text-sm rounded px-3 py-2 focus:outline-none focus:border-cyan-500"
+                                >
+                                    {LINE_TYPES.map(lt => (
+                                        <option key={lt.value} value={lt.value}>{lt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Security Tab ── */}
+                    {activeTab === 'security' && (
+                        <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
+                                These security settings are applied as defaults to all migration jobs for this project.
+                                Individual jobs can override them.
+                            </p>
+                            <SecurityConfigEditor value={security} onChange={setSecurity} />
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-slate-600 shrink-0">
                     <button
                         onClick={onClose}
                         className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-600 rounded hover:bg-gray-200 dark:hover:bg-slate-500 transition"

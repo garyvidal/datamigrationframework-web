@@ -191,6 +191,23 @@ export interface ProjectMapping {
   namespaces?: XmlNamespace[];
 }
 
+// ── MarkLogic Security Types ──────────────────────────────────────────────────
+
+export interface MarkLogicPermission {
+  roleName: string;
+  /** e.g. ["read"], ["read", "update"] */
+  capabilities: string[];
+}
+
+export interface MarkLogicSecurityConfig {
+  permissions?: MarkLogicPermission[];
+  collections?: string[];
+  /** Document quality score — higher ranks higher in search results. */
+  quality?: number;
+  /** Arbitrary key-value metadata pairs. */
+  metadata?: Record<string, string>;
+}
+
 export interface ProjectData {
   id?: string;
   name: string;
@@ -205,6 +222,7 @@ export interface ProjectData {
   settings?: ProjectSettings;
   mapping?: ProjectMapping;
   syntheticJoins?: SyntheticJoin[];
+  securityConfig?: MarkLogicSecurityConfig;
 }
 
 export const saveProject = async (project: ProjectData): Promise<ProjectData> => {
@@ -232,6 +250,26 @@ export const getProjects = async (): Promise<ProjectData[]> => {
   if (!response.ok) {
     throw new Error(`Failed to fetch projects: ${response.statusText}`);
   }
+  return response.json();
+};
+
+export const getProjectSecurity = async (projectId: string): Promise<MarkLogicSecurityConfig | null> => {
+  const response = await fetch(`${SCHEMA_SERVICE_URL}/v1/projects/${encodeURIComponent(projectId)}/security`);
+  if (!response.ok) throw new Error(`Failed to fetch project security: ${response.statusText}`);
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+};
+
+export const updateProjectSecurity = async (
+  projectId: string,
+  config: MarkLogicSecurityConfig,
+): Promise<MarkLogicSecurityConfig> => {
+  const response = await fetch(`${SCHEMA_SERVICE_URL}/v1/projects/${encodeURIComponent(projectId)}/security`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!response.ok) throw new Error(`Failed to update project security: ${response.statusText}`);
   return response.json();
 };
 

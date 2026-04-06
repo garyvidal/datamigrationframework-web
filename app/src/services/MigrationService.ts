@@ -1,3 +1,5 @@
+import { MarkLogicSecurityConfig } from '@/services/ProjectService';
+
 const SERVICE_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:9390';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -13,7 +15,9 @@ export interface DeploymentJob {
   marklogicConnectionId: string;
   marklogicConnectionName: string;
   directoryPath: string;
+  /** @deprecated Use securityConfig.collections instead. */
   collections: string[];
+  securityConfig?: MarkLogicSecurityConfig;
   status: DeploymentJobStatus;
   totalRecords: number;
   processedRecords: number;
@@ -39,7 +43,9 @@ export interface MigrationRequest {
   sourceConnectionId?: string;
   marklogicConnectionId: string;
   directoryPath: string;
+  /** @deprecated Use securityConfig.collections instead. */
   collections: string[];
+  securityConfig?: MarkLogicSecurityConfig;
 }
 
 export interface TableRowCount {
@@ -87,6 +93,26 @@ export const deleteMigrationJob = async (jobId: string): Promise<void> => {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error(`Failed to delete migration job: ${response.statusText}`);
+};
+
+export const getJobSecurity = async (jobId: string): Promise<MarkLogicSecurityConfig | null> => {
+  const response = await fetch(`${SERVICE_URL}/v1/migration/jobs/${encodeURIComponent(jobId)}/security`);
+  if (!response.ok) throw new Error(`Failed to fetch job security: ${response.statusText}`);
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+};
+
+export const updateJobSecurity = async (
+  jobId: string,
+  config: MarkLogicSecurityConfig,
+): Promise<MarkLogicSecurityConfig> => {
+  const response = await fetch(`${SERVICE_URL}/v1/migration/jobs/${encodeURIComponent(jobId)}/security`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!response.ok) throw new Error(`Failed to update job security: ${response.statusText}`);
+  return response.json();
 };
 
 export const getMigrationPreview = async (projectId: string, connectionId?: string): Promise<MigrationPreview> => {

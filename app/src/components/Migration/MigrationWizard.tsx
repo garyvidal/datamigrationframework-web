@@ -1,17 +1,23 @@
-// MigrationWizard — 3-step modal wizard: select source project + MarkLogic connection → configure collection path → review row counts → start migration.
+// MigrationWizard — 4-step modal wizard:
+//   1. Connections  — select project, source RDBMS, MarkLogic connection
+//   2. Path & Collections (via securityConfig)  — directory path + security overrides
+//   3. Security  — job-level security overrides (permissions, collections, quality, metadata)
+//   4. Summary  — row count preview + start button
 import React, { useState, useEffect } from 'react';
-import { FaCheck, FaChevronRight, FaSpinner, FaTimes, FaPlus, FaExclamationTriangle, FaFilter } from 'react-icons/fa';
+import { FaCheck, FaChevronRight, FaSpinner, FaTimes, FaExclamationTriangle, FaFilter } from 'react-icons/fa';
 import { getSavedConnections, SavedConnection } from '@/services/SchemaService';
 import { getSavedMarkLogicConnections, SavedMarkLogicConnection } from '@/services/MarkLogicService';
-import { getProjects, ProjectData } from '@/services/ProjectService';
+import { getProjects, MarkLogicSecurityConfig, ProjectData } from '@/services/ProjectService';
 import { startMigrationJob, getMigrationPreview, DeploymentJob, MigrationPreview } from '@/services/MigrationService';
+import SecurityConfigEditor from '@/components/Security/SecurityConfigEditor';
 
-type WizardStep = 'connections' | 'settings' | 'summary';
+type WizardStep = 'connections' | 'settings' | 'security' | 'summary';
 
 const STEPS: { id: WizardStep; label: string }[] = [
   { id: 'connections', label: 'Connections' },
-  { id: 'settings', label: 'Path & Collections' },
-  { id: 'summary', label: 'Summary' },
+  { id: 'settings',    label: 'Path' },
+  { id: 'security',    label: 'Security' },
+  { id: 'summary',     label: 'Summary' },
 ];
 
 const StepIndicator: React.FC<{ current: WizardStep }> = ({ current }) => {
@@ -65,11 +71,12 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
 
   // Step 2 state
   const [directoryPath, setDirectoryPath] = useState('/');
-  const [collections, setCollections] = useState<string[]>([]);
-  const [newCollection, setNewCollection] = useState('');
   const [step2Error, setStep2Error] = useState<string | null>(null);
 
-  // Step 3 state
+  // Step 3 state — security overrides (initialised from project defaults when project is selected)
+  const [securityConfig, setSecurityConfig] = useState<MarkLogicSecurityConfig>({});
+
+  // Step 4 state
   const [preview, setPreview] = useState<MigrationPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -86,6 +93,7 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
         if (projs.length > 0) {
           const firstProj = projs[0];
           setSelectedProjectId(firstProj.id ?? '');
+          setSecurityConfig(firstProj.securityConfig ?? {});
           const defaultConn = rdbmsConns.find(
             (c) => c.id === firstProj.connectionId || c.name === firstProj.connectionName
           );
@@ -98,7 +106,6 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
 
   const selectedProject = projects.find((p) => (p.id ?? p.name) === selectedProjectId);
 
-  // Derive root element name from project mapping for path hint
   const rootElementName = (() => {
     if (!selectedProject) return '';
     const mt = selectedProject.mapping?.mappingType ?? 'XML';
@@ -110,6 +117,7 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
     setSelectedProjectId(projectId);
     const proj = projects.find((p) => (p.id ?? p.name) === projectId);
     if (proj) {
+      setSecurityConfig(proj.securityConfig ?? {});
       const defaultConn = rdbmsConnections.find(
         (c) => c.id === proj.connectionId || c.name === proj.connectionName
       );
@@ -122,18 +130,17 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
     if (!selectedProjectId) { setStep1Error('Select a project'); return; }
     if (!selectedSourceConnectionId) { setStep1Error('Select a source RDBMS connection'); return; }
     if (!selectedMlConnectionId) { setStep1Error('Select a MarkLogic connection'); return; }
-
-    // Pre-fill directory with rootElement variable
-    if (rootElementName) {
-      setDirectoryPath(`/{rootElement}/`);
-    }
+    if (rootElementName) setDirectoryPath(`/{rootElement}/`);
     setStep('settings');
   };
 
-  const handleStep2Next = async () => {
+  const handleStep2Next = () => {
     setStep2Error(null);
     if (!directoryPath.trim()) { setStep2Error('Enter a directory path'); return; }
+    setStep('security');
+  };
 
+  const handleStep3Next = async () => {
     setPreviewLoading(true);
     setPreview(null);
     setPreviewError(null);
@@ -150,18 +157,6 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
     }
   };
 
-  const addCollection = () => {
-    const trimmed = newCollection.trim();
-    if (trimmed && !collections.includes(trimmed)) {
-      setCollections((prev) => [...prev, trimmed]);
-    }
-    setNewCollection('');
-  };
-
-  const removeCollection = (c: string) => {
-    setCollections((prev) => prev.filter((x) => x !== c));
-  };
-
   const handleStart = async () => {
     setStartError(null);
     setStarting(true);
@@ -171,7 +166,8 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
         sourceConnectionId: selectedSourceConnectionId,
         marklogicConnectionId: selectedMlConnectionId,
         directoryPath: directoryPath.trim(),
-        collections,
+        collections: securityConfig.collections ?? [],
+        securityConfig,
       });
       onStarted(job);
     } catch (e) {
@@ -185,6 +181,13 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
     (c) => c.id === selectedMlConnectionId || c.name === selectedMlConnectionId
   );
 
+  const hasSecurityOverrides = !!(
+    (securityConfig.permissions?.length) ||
+    (securityConfig.collections?.length) ||
+    securityConfig.quality != null ||
+    Object.keys(securityConfig.metadata ?? {}).length > 0
+  );
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
@@ -196,7 +199,7 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
         </div>
 
         {/* Step indicator */}
-        <div className="px-6 pt-5">
+        <div className="px-6 pt-5 shrink-0">
           <StepIndicator current={step} />
         </div>
 
@@ -236,6 +239,11 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                       <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                         Root element: <span className="font-mono text-blue-400">{rootElementName}</span>
                         {' '}— use <span className="font-mono text-blue-400">{'{rootElement}'}</span> in path
+                      </p>
+                    )}
+                    {selectedProject?.securityConfig && (
+                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                        Project has security defaults — you can override them in the Security step.
                       </p>
                     )}
                   </div>
@@ -305,10 +313,9 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
             </div>
           )}
 
-          {/* ── STEP 2: Path & Collections ── */}
+          {/* ── STEP 2: Path ── */}
           {step === 'settings' && (
             <div className="space-y-5">
-              {/* Directory Path */}
               <div>
                 <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
                   Directory Path *
@@ -325,45 +332,6 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                   <span className="font-mono text-blue-400">{'{rootElement}'}</span>{' '}
                   <span className="font-mono text-blue-400">{'{index}'}</span>
                 </p>
-              </div>
-
-              {/* Collections */}
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
-                  Collections
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newCollection}
-                    onChange={(e) => setNewCollection(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCollection(); }}}
-                    placeholder="e.g. my-collection"
-                    className={inputCls}
-                  />
-                  <button
-                    type="button"
-                    onClick={addCollection}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm shrink-0"
-                  >
-                    <FaPlus size={11} /> Add
-                  </button>
-                </div>
-                {collections.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {collections.map((c) => (
-                      <span
-                        key={c}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-slate-600 dark:text-blue-300 rounded text-xs"
-                      >
-                        {c}
-                        <button onClick={() => removeCollection(c)} className="hover:text-red-400 transition">
-                          <FaTimes size={10} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Summary */}
@@ -390,7 +358,20 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
             </div>
           )}
 
-          {/* ── STEP 3: Summary ── */}
+          {/* ── STEP 3: Security ── */}
+          {step === 'security' && (
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Configure document-level security for this job.
+                {selectedProject?.securityConfig
+                  ? ' Settings are pre-filled from the project defaults — modify as needed.'
+                  : ' Leave empty to use MarkLogic server defaults.'}
+              </p>
+              <SecurityConfigEditor value={securityConfig} onChange={setSecurityConfig} />
+            </div>
+          )}
+
+          {/* ── STEP 4: Summary ── */}
           {step === 'summary' && (
             <div className="space-y-4">
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -412,67 +393,84 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
               )}
 
               {preview && (
-                <>
-                  <div className="rounded border border-gray-200 dark:border-slate-600 overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-100 dark:bg-slate-700 text-left">
-                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Schema</th>
-                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Table</th>
-                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Role</th>
-                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Filter</th>
-                          <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300 text-right whitespace-nowrap">Rows</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {preview.tables.map((t, i) => (
-                          <tr
-                            key={i}
-                            className="border-t border-gray-100 dark:border-slate-600 odd:bg-white even:bg-gray-50 dark:odd:bg-slate-800 dark:even:bg-slate-700"
-                          >
-                            <td className="px-3 py-2 text-gray-500 dark:text-gray-400 font-mono text-xs">{t.schema ?? '—'}</td>
-                            <td className="px-3 py-2 text-gray-800 dark:text-white font-mono text-xs">{t.tableName}</td>
-                            <td className="px-3 py-2">
-                              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                                t.role === 'root'
-                                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-                                  : 'bg-gray-100 text-gray-600 dark:bg-slate-600 dark:text-gray-300'
-                              }`}>
-                                {t.role}
+                <div className="rounded border border-gray-200 dark:border-slate-600 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-100 dark:bg-slate-700 text-left">
+                        <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Schema</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Table</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Role</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300">Filter</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 dark:text-gray-300 text-right whitespace-nowrap">Rows</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.tables.map((t, i) => (
+                        <tr
+                          key={i}
+                          className="border-t border-gray-100 dark:border-slate-600 odd:bg-white even:bg-gray-50 dark:odd:bg-slate-800 dark:even:bg-slate-700"
+                        >
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400 font-mono text-xs">{t.schema ?? '—'}</td>
+                          <td className="px-3 py-2 text-gray-800 dark:text-white font-mono text-xs">{t.tableName}</td>
+                          <td className="px-3 py-2">
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                              t.role === 'root'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                : 'bg-gray-100 text-gray-600 dark:bg-slate-600 dark:text-gray-300'
+                            }`}>
+                              {t.role}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            {t.whereClause ? (
+                              <span
+                                title={`WHERE ${t.whereClause}`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-700 max-w-[160px]"
+                              >
+                                <FaFilter size={9} className="shrink-0" />
+                                <span className="truncate font-mono">{t.whereClause}</span>
                               </span>
-                            </td>
-                            <td className="px-3 py-2">
-                              {t.whereClause ? (
-                                <span
-                                  title={`WHERE ${t.whereClause}`}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-700 max-w-[160px]"
-                                >
-                                  <FaFilter size={9} className="shrink-0" />
-                                  <span className="truncate font-mono">{t.whereClause}</span>
-                                </span>
-                              ) : (
-                                <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-white whitespace-nowrap">
-                              {t.rowCount.toLocaleString()}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700">
-                          <td colSpan={4} className="px-3 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300">
-                            Total documents to migrate
+                            ) : (
+                              <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                            )}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-gray-900 dark:text-white">
-                            {preview.totalRows.toLocaleString()}
+                          <td className="px-3 py-2 text-right font-mono text-gray-800 dark:text-white whitespace-nowrap">
+                            {t.rowCount.toLocaleString()}
                           </td>
                         </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700">
+                        <td colSpan={4} className="px-3 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                          Total documents to migrate
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-gray-900 dark:text-white">
+                          {preview.totalRows.toLocaleString()}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              {/* Security summary */}
+              {hasSecurityOverrides && (
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <p className="font-medium">Security settings will be applied:</p>
+                  {(securityConfig.permissions?.length ?? 0) > 0 && (
+                    <p className="text-xs">{securityConfig.permissions!.length} permission(s): {securityConfig.permissions!.map(p => p.roleName).join(', ')}</p>
+                  )}
+                  {(securityConfig.collections?.length ?? 0) > 0 && (
+                    <p className="text-xs">Collections: {securityConfig.collections!.join(', ')}</p>
+                  )}
+                  {securityConfig.quality != null && (
+                    <p className="text-xs">Quality: {securityConfig.quality}</p>
+                  )}
+                  {Object.keys(securityConfig.metadata ?? {}).length > 0 && (
+                    <p className="text-xs">{Object.keys(securityConfig.metadata!).length} metadata key(s)</p>
+                  )}
+                </div>
               )}
 
               {startError && (
@@ -493,9 +491,17 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                 Back
               </button>
             )}
-            {step === 'summary' && (
+            {step === 'security' && (
               <button
                 onClick={() => setStep('settings')}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500"
+              >
+                Back
+              </button>
+            )}
+            {step === 'summary' && (
+              <button
+                onClick={() => setStep('security')}
                 disabled={starting}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -524,6 +530,14 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                 onClick={handleStep2Next}
                 disabled={!directoryPath.trim()}
                 className="px-5 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                Next
+              </button>
+            )}
+            {step === 'security' && (
+              <button
+                onClick={handleStep3Next}
+                className="px-5 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
               >
                 Next
               </button>

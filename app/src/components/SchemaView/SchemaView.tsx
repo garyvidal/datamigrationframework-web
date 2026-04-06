@@ -199,6 +199,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
         settings: ProjectSettings;
         lineType: ConnectionLineType;
         mappingType?: import('@/services/ProjectService').MappingTargetType;
+        securityConfig?: import('@/services/ProjectService').MarkLogicSecurityConfig;
     } | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode>('relational');
     const [showJoinDialog, setShowJoinDialog] = useState(false);
@@ -500,7 +501,13 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
         }
     }, [activeProject, onProjectSchemasUpdated]);
 
-    const persistSettings = useCallback(async (settings: ProjectSettings, lineType: ConnectionLineType, applyToMapping: boolean, mappingType?: import('@/services/ProjectService').MappingTargetType) => {
+    const persistSettings = useCallback(async (
+        settings: ProjectSettings,
+        lineType: ConnectionLineType,
+        applyToMapping: boolean,
+        mappingType?: import('@/services/ProjectService').MappingTargetType,
+        securityConfig?: import('@/services/ProjectService').MarkLogicSecurityConfig,
+    ) => {
         if (!activeProject) return;
         setConnectionLineType(lineType);
         let mapping = applyToMapping && activeProject.mapping && settings.defaultCasing
@@ -509,7 +516,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
         if (mappingType !== undefined) {
             mapping = { ...(mapping ?? { documentModel: { elements: [] } }), mappingType };
         }
-        const updatedProject: ProjectData = { ...activeProject, settings, mapping };
+        const updatedProject: ProjectData = { ...activeProject, settings, mapping, securityConfig };
         try {
             await saveProject(updatedProject);
             onProjectSettingsUpdated?.(updatedProject);
@@ -518,7 +525,12 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
         }
     }, [activeProject, onProjectSettingsUpdated]);
 
-    const handleConfigSave = useCallback((settings: ProjectSettings, newLineType: ConnectionLineType, newMappingType?: import('@/services/ProjectService').MappingTargetType) => {
+    const handleConfigSave = useCallback((
+        settings: ProjectSettings,
+        newLineType: ConnectionLineType,
+        newMappingType: import('@/services/ProjectService').MappingTargetType,
+        newSecurityConfig: import('@/services/ProjectService').MarkLogicSecurityConfig,
+    ) => {
         if (!activeProject) return;
         setShowConfigDialog(false);
         const casingChanged = settings.defaultCasing !== activeProject.settings?.defaultCasing;
@@ -529,9 +541,9 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
             (activeProject.mapping?.jsonDocumentModel?.elements ?? []).length > 0
         );
         if (casingChanged && hasMapping) {
-            setPendingCasingUpdate({ settings, lineType: newLineType, mappingType: newMappingType });
+            setPendingCasingUpdate({ settings, lineType: newLineType, mappingType: newMappingType, securityConfig: newSecurityConfig });
         } else {
-            persistSettings(settings, newLineType, false, newMappingType);
+            persistSettings(settings, newLineType, false, newMappingType, newSecurityConfig);
         }
     }, [activeProject, persistSettings]);
 
@@ -857,6 +869,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                 settings={activeProject.settings ?? {}}
                 connectionLineType={connectionLineType}
                 mappingType={activeProject.mapping?.mappingType ?? 'XML'}
+                securityConfig={activeProject.securityConfig}
                 onSave={handleConfigSave}
                 onClose={() => setShowConfigDialog(false)}
             />
@@ -912,7 +925,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                     <div className="flex justify-end gap-3">
                         <button
                             onClick={() => {
-                                persistSettings(pendingCasingUpdate.settings, pendingCasingUpdate.lineType, false, pendingCasingUpdate.mappingType);
+                                persistSettings(pendingCasingUpdate.settings, pendingCasingUpdate.lineType, false, pendingCasingUpdate.mappingType, pendingCasingUpdate.securityConfig);
                                 setPendingCasingUpdate(null);
                             }}
                             className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-600 rounded hover:bg-gray-200 dark:hover:bg-slate-500 transition"
@@ -921,7 +934,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                         </button>
                         <button
                             onClick={() => {
-                                persistSettings(pendingCasingUpdate.settings, pendingCasingUpdate.lineType, true, pendingCasingUpdate.mappingType);
+                                persistSettings(pendingCasingUpdate.settings, pendingCasingUpdate.lineType, true, pendingCasingUpdate.mappingType, pendingCasingUpdate.securityConfig);
                                 setPendingCasingUpdate(null);
                             }}
                             className="px-4 py-2 text-sm text-white bg-cyan-600 rounded hover:bg-cyan-500 transition"
