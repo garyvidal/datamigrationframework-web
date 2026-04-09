@@ -1,6 +1,6 @@
 // SchemaToolbar — Toolbar above the canvas: layout picker, edge-type picker, undo/redo, relational/document mode toggle, XML/JSON generate buttons, and settings.
 import * as React from 'react'
-import { FaCog, FaCode, FaMousePointer, FaProjectDiagram, FaRedo, FaUndo, FaLink, FaFileImage } from 'react-icons/fa';
+import { FaCog, FaCode, FaMousePointer, FaProjectDiagram, FaRedo, FaUndo, FaLink, FaFileImage, FaFileCode } from 'react-icons/fa';
 import { SiJson } from 'react-icons/si';
 import { LayoutControls, LayoutAlgorithm } from './LayoutControls';
 import { ConnectionLineTypeControl } from './ConnectionLineTypeControl';
@@ -20,6 +20,7 @@ interface SchemaToolbarProps {
   onOpenConfig?: () => void;
   onGenerateXml?: () => void;
   onGenerateJson?: () => void;
+  onGenerateXsd?: () => void;
   mappingType?: MappingTargetType;
   onCreateJoin?: () => void;
   onPrint?: () => void;
@@ -38,12 +39,14 @@ function SchemaToolbar({
   onOpenConfig,
   onGenerateXml,
   onGenerateJson,
+  onGenerateXsd,
   mappingType = 'XML',
   onCreateJoin,
   onPrint,
 }: SchemaToolbarProps) {
   const showXmlButton  = hasActiveProject && onGenerateXml  && (mappingType === 'XML'  || mappingType === 'BOTH');
   const showJsonButton = hasActiveProject && onGenerateJson && (mappingType === 'JSON' || mappingType === 'BOTH');
+  const showXsdButton  = hasActiveProject && onGenerateXsd  && (mappingType === 'XML'  || mappingType === 'BOTH');
   return (
     <div className="w-full h-10 align-top border-b border-gray-200 bg-white dark:border-b-slate-700 dark:bg-slate-800 overflow-y-hidden flex items-stretch justify-between">
 
@@ -106,6 +109,15 @@ function SchemaToolbar({
             className="p-1.5 bg-emerald-600 rounded-none hover:bg-gray-300 text-gray-700 dark:bg-slate-800 dark:hover:bg-slate-600 dark:text-gray-300 dark:hover:text-emerald-300"
           >
             <FaCode />
+          </button>
+        )}
+        {showXsdButton && (
+          <button
+            onClick={onGenerateXsd}
+            title="Generate XSD schema from mapping"
+            className="p-1.5 rounded-none transition bg-gray-200 text-violet-700 hover:bg-gray-300 hover:text-violet-800 dark:bg-slate-800 dark:text-violet-400 dark:hover:bg-slate-600 dark:hover:text-violet-300"
+          >
+            <FaFileCode />
           </button>
         )}
         {showJsonButton && (

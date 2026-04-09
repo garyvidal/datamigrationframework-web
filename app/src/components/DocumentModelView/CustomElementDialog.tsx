@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { FaTimes, FaPlus, FaCode } from 'react-icons/fa';
 import type { ProjectMapping, XmlColumnMapping, XmlSchemaType } from '@/services/ProjectService';
+import JsFunctionEditor, { validateFunction } from './JsFunctionEditor';
 
 const XSD_TYPES: XmlSchemaType[] = ['xs:string', 'xs:integer', 'xs:long', 'xs:date', 'xs:dateTime', 'xs:boolean'];
 
@@ -20,9 +21,9 @@ interface CustomElementDialogProps {
     onCancel: () => void;
 }
 
-const DEFAULT_FN = `// Referenced fields are available as properties on the 'fields' object.
-// Return the computed string value for this element.
-return fields.exampleField;`;
+const DEFAULT_FN = `// Row columns are available as properties on the 'row' object.
+// You can write a bare expression or use return for multi-line logic.
+row.exampleField`;
 
 export default function CustomElementDialog({ mapping, onConfirm, onCancel }: CustomElementDialogProps) {
     const [elementName, setElementName] = useState('');
@@ -120,7 +121,7 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
                     <div>
                         <label className="block text-xs font-medium text-gray-300 mb-1">Reference Fields</label>
                         <p className="text-xs text-gray-400 mb-2">
-                            Checked fields will be available as <code className="text-amber-300">fields.fieldName</code> in your function.
+                            Checked fields will be available as <code className="text-amber-300">row.fieldName</code> in your function.
                         </p>
                         {allCols.length === 0 ? (
                             <p className="text-xs text-gray-400 italic px-2 py-2 rounded bg-slate-800/50">
@@ -154,13 +155,15 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
 
                     {/* JS function */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-300 mb-1">JavaScript Function</label>
-                        <textarea
+                        <label className="block text-xs font-medium text-gray-300 mb-1">
+                            JavaScript Function
+                            <span className="text-gray-500 ml-1">— use <code className="text-amber-300">row.columnName</code> to access fields</span>
+                        </label>
+                        <JsFunctionEditor
                             value={fnBody}
-                            onChange={e => setFnBody(e.target.value)}
-                            rows={7}
-                            spellCheck={false}
-                            className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-xs font-mono text-green-300 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-y leading-relaxed"
+                            onChange={setFnBody}
+                            fieldNames={[...selected]}
+                            minLines={7}
                         />
                     </div>
                 </div>
@@ -175,7 +178,7 @@ export default function CustomElementDialog({ mapping, onConfirm, onCancel }: Cu
                     </button>
                     <button
                         onClick={handleConfirm}
-                        disabled={!elementName.trim()}
+                        disabled={!elementName.trim() || validateFunction(fnBody) !== null}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition
                             enabled:bg-amber-700 enabled:hover:bg-amber-600 enabled:text-white
                             disabled:bg-slate-700 disabled:text-gray-600 disabled:cursor-not-allowed"

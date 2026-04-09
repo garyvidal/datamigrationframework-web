@@ -95,10 +95,17 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
   const handleRename = async (project: ProjectData) => {
     const newName = renameValue.trim();
     if (!newName || newName === project.name) { setRenamingName(null); return; }
+    const conflict = projects.find(
+      (p) => p.name.toLowerCase() === newName.toLowerCase() && (p.id ?? p.name) !== (project.id ?? project.name)
+    );
+    if (conflict) {
+      setError(`A project named "${newName}" already exists.`);
+      return;
+    }
     setRenaming(true);
     try {
       await saveProject({ ...project, name: newName });
-      setProjects((prev) => prev.map((p) => p.name === project.name ? { ...p, name: newName } : p));
+      setProjects((prev) => prev.map((p) => (p.id ?? p.name) === (project.id ?? project.name) ? { ...p, name: newName } : p));
       onRenamed?.(project.name, newName);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rename project');
@@ -112,7 +119,7 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
     setDeleting(true);
     try {
       await deleteProject(project.id ?? project.name);
-      setProjects((prev) => prev.filter((p) => p.name !== project.name));
+      setProjects((prev) => prev.filter((p) => (p.id ?? p.name) !== (project.id ?? project.name)));
       onDeleted?.(project.name);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete project');
@@ -160,17 +167,18 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
             {!loading && !error && projects.length > 0 && (
               <ul className="space-y-2">
                 {projects.map((project) => {
+                  const projectKey = project.id ?? project.name;
                   const isOpen = alreadyOpenNames.includes(project.name);
-                  const isConfirming = confirmDelete === project.name;
+                  const isConfirming = confirmDelete === projectKey;
                   const tableCount = Object.values(project.schemas).reduce(
                     (sum, s) => sum + Object.keys(s.tables ?? {}).length,
                     0
                   );
-                  const isRenaming = renamingName === project.name;
+                  const isRenaming = renamingName === projectKey;
                   const isExporting = exportPicker?.projectName === project.name;
 
                   return (
-                    <li key={project.name} className="space-y-1">
+                    <li key={projectKey} className="space-y-1">
                       {isRenaming ? (
                         <div className="flex items-stretch gap-2">
                           <input
@@ -234,7 +242,7 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
 
                           {/* Rename */}
                           <button
-                            onClick={() => { setRenamingName(project.name); setRenameValue(project.name); setConfirmDelete(null); setExportPicker(null); }}
+                            onClick={() => { setRenamingName(projectKey); setRenameValue(project.name); setConfirmDelete(null); setExportPicker(null); }}
                             className="shrink-0 px-3 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-gray-400 dark:hover:text-white transition"
                             title={`Rename ${project.name}`}
                           >
@@ -260,7 +268,7 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
                             </div>
                           ) : (
                             <button
-                              onClick={() => { setConfirmDelete(project.name); setExportPicker(null); }}
+                              onClick={() => { setConfirmDelete(projectKey); setExportPicker(null); }}
                               className="shrink-0 px-3 rounded bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-700 dark:bg-slate-600 dark:hover:bg-red-800 dark:text-gray-400 dark:hover:text-white transition"
                               title={`Delete ${project.name}`}
                             >

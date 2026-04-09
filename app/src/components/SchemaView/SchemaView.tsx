@@ -19,6 +19,7 @@ import { ConfigDialog } from "../Project/ConfigDialog";
 import { TableFilterDialog } from "../Project/TableFilterDialog";
 import GenerateXmlModal from "../Project/GenerateXmlModal";
 import GenerateJsonModal from "../Project/GenerateJsonModal";
+import GenerateXsdModal from "../Project/GenerateXsdModal";
 import { DbTable, DbSchema, DbConnection, SchemaAnalysisRequest, analyzeSchema } from "@/services/SchemaService";
 import { ProjectData, ProjectSettings, ProjectMapping, XmlTableMapping, SyntheticJoin, saveProject } from "@/services/ProjectService";
 import SyntheticJoinDialog from "./SyntheticJoinDialog";
@@ -195,6 +196,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
     const [showConfigDialog, setShowConfigDialog] = useState(false);
     const [showGenerateModal, setShowGenerateModal] = useState(false);
     const [showGenerateJsonModal, setShowGenerateJsonModal] = useState(false);
+    const [showGenerateXsdModal, setShowGenerateXsdModal] = useState(false);
     const [pendingCasingUpdate, setPendingCasingUpdate] = useState<{
         settings: ProjectSettings;
         lineType: ConnectionLineType;
@@ -594,6 +596,11 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
     }, [edges, showEdges, connectionLineType]);
 
     const handleMappingChange = useCallback(async (updatedProject: ProjectData) => {
+        // Cancel any pending diagram autosave — it would use stale project state and overwrite this mapping change.
+        if (diagramSaveTimer.current) {
+            clearTimeout(diagramSaveTimer.current);
+            diagramSaveTimer.current = null;
+        }
         try {
             await saveProject(updatedProject);
             onProjectSchemasUpdated?.(updatedProject);
@@ -747,6 +754,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                             onOpenConfig={() => setShowConfigDialog(true)}
                             onGenerateXml={activeProject ? () => setShowGenerateModal(true) : undefined}
                             onGenerateJson={activeProject ? () => setShowGenerateJsonModal(true) : undefined}
+                            onGenerateXsd={activeProject ? () => setShowGenerateXsdModal(true) : undefined}
                             mappingType={activeProject?.mapping?.mappingType ?? 'XML'}
                             onCreateJoin={activeProject ? () => setShowJoinDialog(true) : undefined}
                             onPrint={nodes.length > 0 ? handleExportPng : undefined}
@@ -888,6 +896,14 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                 projectId={activeProject.id}
                 projectName={activeProject.name}
                 onClose={() => setShowGenerateJsonModal(false)}
+            />
+        )}
+
+        {showGenerateXsdModal && activeProject?.id && (
+            <GenerateXsdModal
+                projectId={activeProject.id}
+                projectName={activeProject.name}
+                onClose={() => setShowGenerateXsdModal(false)}
             />
         )}
 

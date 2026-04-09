@@ -303,6 +303,18 @@ export const generateXmlPreview = async (projectId: string, limit: number = 10):
   return response.json();
 };
 
+export const generateXsdSchema = async (projectId: string): Promise<string> => {
+  const response = await fetch(
+    `${SCHEMA_SERVICE_URL}/v1/projects/${encodeURIComponent(projectId)}/generate/schema`,
+    { method: 'GET' }
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Failed to generate XSD schema: ${response.statusText}`);
+  }
+  return response.text();
+};
+
 export interface JsonPreviewResponse {
   documents: string[];
   totalRows: number;

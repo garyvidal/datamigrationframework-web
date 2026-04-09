@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { FaTimes, FaGripVertical, FaChevronDown, FaChevronUp, FaDatabase, FaLink, FaPlus } from 'react-icons/fa';
 import type { JsonColumnType, JsonTableMapping } from '@/services/ProjectService';
+import JsFunctionEditor from './JsFunctionEditor';
 
 /** A DB column available for restore (deleted from mapping but still in schema). */
 export interface RestorableJsonColumn {
@@ -18,20 +19,20 @@ const JSON_TYPE_COLOR: Record<JsonColumnType, string> = {
 };
 
 const BADGE_LABEL: Record<string, string> = {
-    RootObject:  'ROOT',
-    Array:       'ARRAY',
+    RootObject:   'ROOT',
+    Array:        'ARRAY',
     InlineObject: 'INLINE',
 };
 
 const HEADER_BG: Record<string, string> = {
-    RootObject:  'bg-cyan-50 dark:bg-cyan-900/40',
-    Array:       'bg-gray-100 dark:bg-slate-600',
+    RootObject:   'bg-cyan-50 dark:bg-cyan-900/40',
+    Array:        'bg-gray-100 dark:bg-slate-600',
     InlineObject: 'bg-violet-50 dark:bg-violet-900/40',
 };
 
 const ACCENT: Record<string, string> = {
-    RootObject:  'text-cyan-700 dark:text-cyan-300',
-    Array:       'text-gray-700 dark:text-gray-200',
+    RootObject:   'text-cyan-700 dark:text-cyan-300',
+    Array:        'text-gray-700 dark:text-gray-200',
     InlineObject: 'text-violet-700 dark:text-violet-300',
 };
 
@@ -50,26 +51,34 @@ interface JsonMappingTableCardProps {
 export default function JsonMappingTableCard({ mapping, onChange, onRemove, parentJsonName, availableColumns = [] }: JsonMappingTableCardProps) {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    /** Index of custom field row whose fn editor is open (-1 = none). */
+    const [expandedFnIndex, setExpandedFnIndex] = useState(-1);
+    /** Index of DB column row whose source info panel is open (-1 = none). */
     const [expandedSourceIndex, setExpandedSourceIndex] = useState(-1);
     const [dragIndex, setDragIndex] = useState(-1);
     const [insertBefore, setInsertBefore] = useState(-1);
-    const gripPressed = React.useRef(false);
+    const gripPressed = useRef(false);
     const [restoreOpen, setRestoreOpen] = useState(false);
     const restoreButtonRef = useRef<HTMLButtonElement>(null);
-    const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
+    const restoreDropdownRef = useRef<HTMLDivElement>(null);
+    const [restoreDropdownPos, setRestoreDropdownPos] = useState<{ top: number; right: number } | null>(null);
 
     const openRestore = useCallback(() => {
         if (restoreButtonRef.current) {
             const rect = restoreButtonRef.current.getBoundingClientRect();
-            setDropdownPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right });
+            setRestoreDropdownPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right });
         }
         setRestoreOpen(true);
     }, []);
 
+    // Close restore dropdown on outside click
     useEffect(() => {
         if (!restoreOpen) return;
         const handler = (e: MouseEvent) => {
-            if (restoreButtonRef.current && !restoreButtonRef.current.contains(e.target as Node)) {
+            if (
+                restoreButtonRef.current && !restoreButtonRef.current.contains(e.target as Node) &&
+                restoreDropdownRef.current && !restoreDropdownRef.current.contains(e.target as Node)
+            ) {
                 setRestoreOpen(false);
             }
         };
@@ -93,10 +102,17 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
         setRestoreOpen(false);
     };
 
+    /** DB column names available as `row.X` in custom functions */
+    const availableFieldNames = mapping.columns
+        .filter(c => c.sourceColumn !== '')
+        .map(c => c.sourceColumn);
+
     const isInline = mapping.mappingType === 'InlineObject';
     const headerBg = HEADER_BG[mapping.mappingType] ?? 'bg-slate-600';
     const badge    = BADGE_LABEL[mapping.mappingType] ?? mapping.mappingType;
     const accent   = ACCENT[mapping.mappingType] ?? 'text-gray-200';
+
+    // ── column mutation helpers ───────────────────────────────────────────────
 
     const updateJsonKey = (index: number, key: string) => {
         const cols = mapping.columns.map((col, i) => i !== index ? col : { ...col, jsonKey: key });
@@ -108,9 +124,24 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
         onChange({ ...mapping, columns: cols });
     };
 
+    const updateColumnFn = (index: number, fn: string) => {
+        onChange({ ...mapping, columns: mapping.columns.map((c, i) => i !== index ? c : { ...c, customFunction: fn }) });
+    };
+
+    const addCustomField = () => {
+        onChange({ ...mapping, columns: [...mapping.columns, {
+            sourceColumn: '',
+            jsonKey: 'customField',
+            jsonType: 'string' as JsonColumnType,
+            mappingType: 'CUSTOM' as const,
+        }] });
+    };
+
     const removeColumn = (index: number) => {
         onChange({ ...mapping, columns: mapping.columns.filter((_, i) => i !== index) });
     };
+
+    // ── drag-and-drop ─────────────────────────────────────────────────────────
 
     const handleDragStart = (e: React.DragEvent, i: number) => {
         if (!gripPressed.current) { e.preventDefault(); return; }
@@ -140,7 +171,8 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
         if (isNaN(from) || from === target || from === target - 1) return;
         const cols = [...mapping.columns];
         const [moved] = cols.splice(from, 1);
-        cols.splice(target > from ? target - 1 : target, 0, moved);
+        const adjustedTarget = target > from ? target - 1 : target;
+        cols.splice(adjustedTarget, 0, moved);
         onChange({ ...mapping, columns: cols });
     };
 
@@ -164,7 +196,7 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                     {isInline && parentJsonName && (
                         <>
                             <FaLink size={8} className="text-violet-400 shrink-0" />
-                            <span className="text-xs text-violet-400 font-mono shrink-0 max-w-[80px] truncate">{parentJsonName}</span>
+                            <span className="text-xs text-violet-400 font-mono shrink-0 max-w-[80px] truncate" title={parentJsonName}>{parentJsonName}</span>
                             <span className="text-xs text-gray-500 shrink-0">›</span>
                         </>
                     )}
@@ -201,9 +233,10 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                             <FaPlus size={8} />
                             <span>{restorableColumns.length}</span>
                         </button>
-                        {restoreOpen && dropdownPos && ReactDOM.createPortal(
+                        {restoreOpen && restoreDropdownPos && ReactDOM.createPortal(
                             <div
-                                style={{ position: 'fixed', top: dropdownPos.top, right: dropdownPos.right }}
+                                ref={restoreDropdownRef}
+                                style={{ position: 'fixed', top: restoreDropdownPos.top, right: restoreDropdownPos.right }}
                                 className="z-[9999] min-w-[160px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded shadow-lg overflow-hidden"
                             >
                                 <div className="px-2 py-1 text-xs text-gray-500 dark:text-gray-300 border-b border-gray-100 dark:border-slate-700 font-medium">
@@ -226,6 +259,7 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
 
                 <button
                     onClick={() => setSettingsOpen(v => !v)}
+                    title={settingsOpen ? 'Close settings' : 'Edit settings'}
                     className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition border ${
                         settingsOpen
                             ? 'border-gray-400 bg-gray-200 text-gray-800 dark:border-slate-400 dark:bg-slate-600 dark:text-white'
@@ -281,7 +315,7 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                         <>
                             <div className="flex items-center gap-2">
                                 <label className="text-xs text-gray-500 dark:text-gray-300 w-24 shrink-0">Nested Under</label>
-                                <span className="text-xs font-mono text-violet-700 bg-violet-50 border border-violet-200 dark:text-violet-300 dark:bg-violet-900/20 dark:border-violet-800 px-2 py-1 rounded">
+                                <span className="text-xs font-mono text-violet-300 bg-violet-900/20 border border-violet-800 px-2 py-1 rounded">
                                     {parentJsonName || '(none)'}
                                 </span>
                             </div>
@@ -307,13 +341,15 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
             {/* Column rows */}
             <div onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) resetDrag(); }}>
                 {mapping.columns.length === 0 && (
-                    <div className="px-4 py-3 text-xs text-gray-500 italic">No columns</div>
+                    <div className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 italic">No columns</div>
                 )}
 
                 {mapping.columns.map((col, i) => {
-                    const isDragging = dragIndex === i;
+                    const isCustomCol = col.sourceColumn === '';
+                    const isDragging  = dragIndex === i;
+
                     return (
-                        <React.Fragment key={`col-${i}-${col.sourceColumn}`}>
+                        <React.Fragment key={`col-${i}-${col.sourceColumn || col.id}`}>
                             <DropLine before={i} />
                             <div
                                 draggable
@@ -334,18 +370,19 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                                     <FaGripVertical size={10} />
                                 </span>
 
-                                {/* JSON type toggle */}
-                                <button
-                                    onClick={() => {
-                                        const types = JSON_TYPES;
-                                        const next = types[(types.indexOf(col.jsonType) + 1) % types.length];
-                                        updateJsonType(i, next);
-                                    }}
-                                    title={`Type: ${col.jsonType} — click to cycle`}
-                                    className={`shrink-0 px-1.5 py-0.5 rounded text-xs font-mono font-medium border-0 ${JSON_TYPE_COLOR[col.jsonType] ?? 'bg-slate-700 text-gray-400'}`}
-                                >
-                                    {col.jsonType}
-                                </button>
+                                {/* JSON type toggle (DB columns only) */}
+                                {!isCustomCol && (
+                                    <button
+                                        onClick={() => {
+                                            const next = JSON_TYPES[(JSON_TYPES.indexOf(col.jsonType) + 1) % JSON_TYPES.length];
+                                            updateJsonType(i, next);
+                                        }}
+                                        title={`Type: ${col.jsonType} — click to cycle`}
+                                        className={`shrink-0 px-1.5 py-0.5 rounded text-xs font-mono font-medium border-0 ${JSON_TYPE_COLOR[col.jsonType] ?? 'bg-slate-700 text-gray-400'}`}
+                                    >
+                                        {col.jsonType}
+                                    </button>
+                                )}
 
                                 {/* JSON key name */}
                                 <input
@@ -355,19 +392,44 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                                     className="flex-1 min-w-0 bg-transparent font-mono text-gray-800 dark:text-white focus:outline-none rounded px-1 focus:ring-1 focus:ring-cyan-500"
                                 />
 
+                                {/* Custom badge */}
+                                {isCustomCol && (
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-xs border border-dashed border-slate-500 text-gray-400 italic">
+                                        custom
+                                    </span>
+                                )}
+
                                 {/* DB column info toggle */}
-                                <button
-                                    onClick={() => setExpandedSourceIndex(expandedSourceIndex === i ? -1 : i)}
-                                    onMouseDown={e => e.stopPropagation()}
-                                    title={expandedSourceIndex === i ? 'Hide source info' : 'Show source column info'}
-                                    className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border transition ${
-                                        expandedSourceIndex === i
-                                            ? 'border-gray-400 bg-gray-200 text-gray-700 dark:border-slate-400 dark:bg-slate-600 dark:text-gray-300'
-                                            : 'border-gray-300 text-gray-500 hover:text-gray-700 hover:border-gray-400 dark:border-slate-600 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:border-slate-500'
-                                    }`}
-                                >
-                                    <FaDatabase size={8} />
-                                </button>
+                                {!isCustomCol && (
+                                    <button
+                                        onClick={() => setExpandedSourceIndex(expandedSourceIndex === i ? -1 : i)}
+                                        onMouseDown={e => e.stopPropagation()}
+                                        title={expandedSourceIndex === i ? 'Hide source info' : 'Show source column info'}
+                                        className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border transition ${
+                                            expandedSourceIndex === i
+                                                ? 'border-slate-400 bg-slate-600 text-gray-300'
+                                                : 'border-slate-600 text-gray-400 hover:text-gray-200 hover:border-slate-500'
+                                        }`}
+                                    >
+                                        <FaDatabase size={8} />
+                                    </button>
+                                )}
+
+                                {/* Fn expand toggle — custom fields only */}
+                                {isCustomCol && (
+                                    <button
+                                        onClick={() => setExpandedFnIndex(expandedFnIndex === i ? -1 : i)}
+                                        onMouseDown={e => e.stopPropagation()}
+                                        title={expandedFnIndex === i ? 'Close function editor' : 'Edit JavaScript function'}
+                                        className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border transition ${
+                                            expandedFnIndex === i
+                                                ? 'border-amber-600 bg-amber-900/30 text-amber-300'
+                                                : 'border-slate-600 text-gray-400 hover:text-amber-300 hover:border-amber-700'
+                                        }`}
+                                    >
+                                        <span className="font-serif font-bold text-sm leading-none">ƒ</span>
+                                    </button>
+                                )}
 
                                 <button
                                     onClick={() => removeColumn(i)}
@@ -378,11 +440,14 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                                 </button>
                             </div>
 
-                            {expandedSourceIndex === i && (
+                            {/* Relational info panel — DB columns only */}
+                            {!isCustomCol && expandedSourceIndex === i && (
                                 <div className="px-3 py-2 bg-gray-50 dark:bg-slate-800/60 border-t border-gray-100 dark:border-slate-600/50 flex items-center gap-4">
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-xs text-gray-500 dark:text-gray-400">Column</span>
-                                        <span className="text-xs font-mono text-gray-700 bg-gray-100 dark:text-gray-300 dark:bg-slate-700 px-1.5 py-0.5 rounded">{col.sourceColumn}</span>
+                                        <span className="text-xs font-mono text-gray-700 bg-gray-100 dark:text-gray-300 dark:bg-slate-700 px-1.5 py-0.5 rounded" title={col.sourceColumn}>
+                                            {col.sourceColumn}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-xs text-gray-500 dark:text-gray-400">JSON Type</span>
@@ -392,15 +457,59 @@ export default function JsonMappingTableCard({ mapping, onChange, onRemove, pare
                                     </div>
                                 </div>
                             )}
+
+                            {/* Inline function editor */}
+                            {isCustomCol && expandedFnIndex === i && (
+                                <div className="px-3 pb-2 pt-1 bg-gray-50 dark:bg-slate-800/60 border-t border-amber-100 dark:border-amber-900/40">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">Output Type</span>
+                                        <select
+                                            value={col.jsonType}
+                                            onChange={e => updateJsonType(i, e.target.value as JsonColumnType)}
+                                            onMouseDown={e => e.stopPropagation()}
+                                            className={`rounded font-mono text-xs px-1 py-0.5 border-0 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer ${JSON_TYPE_COLOR[col.jsonType] ?? 'bg-slate-700 text-gray-400'}`}
+                                        >
+                                            {JSON_TYPES.map(t => (
+                                                <option key={t} value={t} className="bg-slate-800 text-gray-200">{t}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <label className="block text-xs text-gray-500 mb-1">
+                                        JavaScript Function
+                                        <span className="text-gray-600 ml-1">— return the computed value for <code className="text-amber-300">{col.jsonKey || 'this field'}</code></span>
+                                    </label>
+                                    <JsFunctionEditor
+                                        value={col.customFunction ?? ''}
+                                        onChange={v => updateColumnFn(i, v)}
+                                        fieldNames={availableFieldNames}
+                                        minLines={5}
+                                        placeholder={`// return the value for ${col.jsonKey || 'this field'}\nreturn null;`}
+                                    />
+                                </div>
+                            )}
                         </React.Fragment>
                     );
                 })}
 
+                {/* Drop zone after the last row */}
                 {mapping.columns.length > 0 && (
                     <div className="h-2" onDragOver={handleDragOverEnd} onDrop={e => handleDrop(e, mapping.columns.length)}>
                         <DropLine before={mapping.columns.length} />
                     </div>
                 )}
+
+                {/* Add custom field */}
+                <div className="px-2 py-2 border-t border-gray-100 dark:border-slate-600/40">
+                    <button
+                        onClick={addCustomField}
+                        onMouseDown={e => e.stopPropagation()}
+                        title="Add a custom field not sourced from a DB column"
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-dashed border-slate-400 text-slate-500 hover:border-cyan-500 hover:text-cyan-600 hover:bg-cyan-50 dark:border-slate-500 dark:text-slate-300 dark:hover:border-cyan-500 dark:hover:text-cyan-300 dark:hover:bg-cyan-900/20 transition"
+                    >
+                        <FaPlus size={8} />
+                        <span>Add custom field</span>
+                    </button>
+                </div>
             </div>
         </div>
     );

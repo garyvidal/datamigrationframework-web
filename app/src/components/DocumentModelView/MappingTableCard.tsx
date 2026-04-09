@@ -3,124 +3,9 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { FaTimes, FaTag, FaLayerGroup, FaLink, FaGripVertical, FaChevronDown, FaChevronUp, FaPlus, FaDatabase } from 'react-icons/fa';
 import type { XmlTableMapping, XmlColumnMapping, XmlNamespace, ColumnMappingType, XmlSchemaType } from '@/services/ProjectService';
+import JsFunctionEditor from './JsFunctionEditor';
 
-// ── FunctionTextarea: textarea with field-name autocomplete ───────────────────
-
-interface FunctionTextareaProps {
-    value: string;
-    onChange: (v: string) => void;
-    fieldNames: string[];
-    placeholder?: string;
-    rows?: number;
-    className?: string;
-    onMouseDown?: (e: React.MouseEvent<HTMLTextAreaElement>) => void;
-}
-
-function getTokenAtCursor(text: string, cursor: number): { token: string; start: number } {
-    let start = cursor;
-    while (start > 0 && /[\w.]/.test(text[start - 1])) start--;
-    return { token: text.slice(start, cursor), start };
-}
-
-function FunctionTextarea({ value, onChange, fieldNames, placeholder, rows = 5, className, onMouseDown }: FunctionTextareaProps) {
-    const [suggestions, setSuggestions] = useState<string[]>([]);
-    const [selectedIdx, setSelectedIdx] = useState(0);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-    const computeSuggestions = useCallback((text: string, cursor: number): string[] => {
-        const { token } = getTokenAtCursor(text, cursor);
-        if (!token) return [];
-
-        // fields.xxx → suggest matching column names as completions
-        const fieldsMatch = token.match(/^fields\.(\w*)$/);
-        if (fieldsMatch) {
-            const partial = fieldsMatch[1].toLowerCase();
-            return fieldNames
-                .filter(f => f.toLowerCase().startsWith(partial))
-                .map(f => `fields.${f}`);
-        }
-
-        // partial word → suggest 'fields' if it matches
-        if (token.length >= 1 && 'fields'.startsWith(token.toLowerCase()) && token.toLowerCase() !== 'fields') {
-            return ['fields'];
-        }
-
-        return [];
-    }, [fieldNames]);
-
-    const applySuggestion = useCallback((suggestion: string) => {
-        const ta = textareaRef.current;
-        if (!ta) return;
-        const cursor = ta.selectionStart ?? 0;
-        const { start } = getTokenAtCursor(value, cursor);
-        const newValue = value.slice(0, start) + suggestion + value.slice(cursor);
-        onChange(newValue);
-        setSuggestions([]);
-        const newCursor = start + suggestion.length;
-        requestAnimationFrame(() => {
-            ta.selectionStart = newCursor;
-            ta.selectionEnd = newCursor;
-            ta.focus();
-        });
-    }, [value, onChange]);
-
-    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        onChange(e.target.value);
-        const cursor = e.target.selectionStart ?? 0;
-        setSuggestions(computeSuggestions(e.target.value, cursor));
-        setSelectedIdx(0);
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (suggestions.length === 0) return;
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setSelectedIdx(i => Math.min(i + 1, suggestions.length - 1));
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setSelectedIdx(i => Math.max(i - 1, 0));
-        } else if (e.key === 'Tab' || e.key === 'Enter') {
-            e.preventDefault();
-            applySuggestion(suggestions[selectedIdx]);
-        } else if (e.key === 'Escape') {
-            setSuggestions([]);
-        }
-    };
-
-    return (
-        <div className="relative">
-            <textarea
-                ref={textareaRef}
-                value={value}
-                onChange={handleChange}
-                onKeyDown={handleKeyDown}
-                onBlur={() => setTimeout(() => setSuggestions([]), 150)}
-                onMouseDown={onMouseDown}
-                rows={rows}
-                spellCheck={false}
-                placeholder={placeholder}
-                className={className}
-            />
-            {suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 z-50 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 rounded shadow-lg overflow-hidden mt-0.5">
-                    {suggestions.map((s, idx) => (
-                        <div
-                            key={s}
-                            onMouseDown={e => { e.preventDefault(); applySuggestion(s); }}
-                            className={`px-2 py-1 text-xs font-mono cursor-pointer ${
-                                idx === selectedIdx
-                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'
-                                    : 'text-green-700 hover:bg-gray-50 dark:text-green-300 dark:hover:bg-slate-700'
-                            }`}
-                        >
-                            {s}
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
+// FunctionTextarea replaced by JsFunctionEditor (CodeMirror-based, see JsFunctionEditor.tsx)
 
 /** A DB column available for restore (deleted from mapping but still in schema). */
 export interface RestorableColumn {
@@ -274,7 +159,7 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
 
     const XSD_TYPES: XmlSchemaType[] = ['xs:string', 'xs:integer', 'xs:long', 'xs:decimal', 'xs:date', 'xs:dateTime', 'xs:boolean','xs:hexBinary'];
 
-    /** DB column names available as `fields.X` in custom functions */
+    /** DB column names available as `row.X` in custom functions */
     const availableFieldNames = mapping.columns
         .filter(c => c.sourceColumn !== '')
         .map(c => c.sourceColumn);
@@ -622,15 +507,14 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                                 <label className="block text-xs text-gray-500 mb-1">
                                     JavaScript Function
                                     <span className="text-gray-600 ml-1">
-                                        — <code className="text-amber-300">fields</code> contains referenced columns
+                                        — use <code className="text-amber-300">row.columnName</code> to access columns
                                     </span>
                                 </label>
-                                <FunctionTextarea
+                                <JsFunctionEditor
                                     value={mapping.customFunction ?? ''}
                                     onChange={v => onChange({ ...mapping, customFunction: v })}
                                     fieldNames={availableFieldNames}
-                                    rows={6}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs font-mono text-green-300 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-y leading-relaxed"
+                                    minLines={6}
                                 />
                             </div>
                         </div>
@@ -823,14 +707,12 @@ export default function MappingTableCard({ mapping, onChange, onRemove, parentXm
                                         JavaScript Function
                                         <span className="text-gray-600 ml-1">— return the computed value for <code className="text-amber-300">{col.xmlName || 'this field'}</code></span>
                                     </label>
-                                    <FunctionTextarea
+                                    <JsFunctionEditor
                                         value={col.customFunction ?? ''}
                                         onChange={v => updateColumnFn(i, v)}
-                                        onMouseDown={e => e.stopPropagation()}
                                         fieldNames={availableFieldNames}
-                                        rows={5}
+                                        minLines={5}
                                         placeholder={`// return the value for ${col.xmlName || 'this field'}\nreturn null;`}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs font-mono text-green-300 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-y leading-relaxed"
                                     />
                                 </div>
                             )}
