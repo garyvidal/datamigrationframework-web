@@ -8,6 +8,7 @@ export type DeploymentJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
 
 export interface DeploymentJob {
   id: string;
+  dryRun?: boolean;
   projectId: string;
   projectName: string;
   sourceConnectionId?: string;
@@ -18,6 +19,8 @@ export interface DeploymentJob {
   /** @deprecated Use securityConfig.collections instead. */
   collections: string[];
   securityConfig?: MarkLogicSecurityConfig;
+  transformName?: string;
+  transformParams?: Record<string, string>;
   status: DeploymentJobStatus;
   totalRecords: number;
   processedRecords: number;
@@ -46,6 +49,33 @@ export interface MigrationRequest {
   /** @deprecated Use securityConfig.collections instead. */
   collections: string[];
   securityConfig?: MarkLogicSecurityConfig;
+  /** Name of a server-side MarkLogic REST transform to apply on ingest (optional). */
+  transformName?: string;
+  /** Named parameters passed to the transform (optional). */
+  transformParams?: Record<string, string>;
+  /** When true, count source records but do not write any documents to MarkLogic. */
+  dryRun?: boolean;
+}
+
+// ── Validation types ──────────────────────────────────────────────────────────
+
+export type CheckStatus = 'PASS' | 'WARN' | 'FAIL';
+export type CheckCategory = 'CONNECTIVITY' | 'MAPPING' | 'SECURITY';
+
+export interface ValidationCheck {
+  checkId: string;
+  category: CheckCategory;
+  label: string;
+  status: CheckStatus;
+  detail?: string | null;
+  hint?: string | null;
+}
+
+export interface ValidationReport {
+  checks: ValidationCheck[];
+  canProceed: boolean;
+  hasWarnings: boolean;
+  evaluatedAt: string;
 }
 
 export interface TableRowCount {
@@ -112,6 +142,19 @@ export const updateJobSecurity = async (
     body: JSON.stringify(config),
   });
   if (!response.ok) throw new Error(`Failed to update job security: ${response.statusText}`);
+  return response.json();
+};
+
+export const validateMigration = async (request: MigrationRequest): Promise<ValidationReport> => {
+  const response = await fetch(`${SERVICE_URL}/v1/migration/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Validation request failed: ${response.statusText}`);
+  }
   return response.json();
 };
 

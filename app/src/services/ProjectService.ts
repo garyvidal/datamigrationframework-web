@@ -315,6 +315,18 @@ export const generateXsdSchema = async (projectId: string): Promise<string> => {
   return response.text();
 };
 
+export const generateXslt = async (projectId: string): Promise<string> => {
+  const response = await fetch(
+    `${SCHEMA_SERVICE_URL}/v1/projects/${encodeURIComponent(projectId)}/generate/xslt`,
+    { method: 'GET' }
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Failed to generate XSLT: ${response.statusText}`);
+  }
+  return response.text();
+};
+
 export interface JsonPreviewResponse {
   documents: string[];
   totalRows: number;

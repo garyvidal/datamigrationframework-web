@@ -140,7 +140,7 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
   return (
     <>
       <div className="dark fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-slate-700 rounded-lg shadow-2xl w-full max-w-md mx-4">
+        <div className="bg-white dark:bg-slate-700 rounded-lg shadow-2xl w-full max-w-2xl mx-4">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-600">
             <h2 className="text-gray-800 dark:text-white font-semibold text-lg">Open Project</h2>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-white">
@@ -148,7 +148,7 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
             </button>
           </div>
 
-          <div className="px-6 py-4 max-h-96 overflow-y-auto">
+          <div className="px-6 py-4 max-h-[32rem] overflow-y-auto">
             {loading && <p className="text-gray-400 text-sm">Loading projects...</p>}
             {error && <p className="text-red-400 text-sm">{error}</p>}
             {!loading && !error && projects.length === 0 && (
@@ -210,7 +210,7 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
                           <button
                             onClick={() => { if (!isOpen) onOpen(project); }}
                             disabled={isOpen}
-                            className={`flex-1 text-left px-4 py-3 rounded flex items-start gap-3 transition ${
+                            className={`flex-1 text-left px-3 py-2 rounded flex items-start gap-3 transition ${
                               isOpen
                                 ? 'bg-gray-100 dark:bg-slate-600 opacity-50 cursor-default'
                                 : 'bg-gray-100 hover:bg-gray-200 dark:bg-slate-600 dark:hover:bg-slate-500 cursor-pointer'
@@ -281,12 +281,9 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
                       {/* Inline export picker */}
                       {isExporting && exportPicker && (
                         <div className="ml-1 p-3 bg-blue-50 dark:bg-slate-800 rounded-lg border border-blue-200 dark:border-slate-600 space-y-2">
-                          <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                            Export package for <strong>{exportPicker.projectName}</strong>
-                          </p>
                           <div>
                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">
-                              Source connection <span className="text-gray-400">(optional)</span>
+                              Source connection
                             </label>
                             {connectionsLoading ? (
                               <p className="text-xs text-gray-400">Loading...</p>
@@ -305,7 +302,7 @@ export default function OpenProjectModal({ onOpen, onClose, onDeleted, onRenamed
                           </div>
                           <div>
                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">
-                              MarkLogic connection <span className="text-gray-400">(optional)</span>
+                              MarkLogic connection
                             </label>
                             {connectionsLoading ? (
                               <p className="text-xs text-gray-400">Loading...</p>

@@ -16,7 +16,7 @@ const CollapsiblePanel = ({ title, body, direction, ribbonLabel, collapsed, onTo
         const label = ribbonLabel ?? title;
         return (
             <div
-                className="flex flex-col h-full bg-gray-100 dark:bg-slate-800 border-r border-gray-200 dark:border-slate-600 w-8 items-center select-none cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                className="flex flex-col h-full bg-gray-50 dark:bg-slate-700 border-r border-gray-100 dark:border-slate-600 w-8 items-center select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
                 onClick={onToggle}
                 title={`Expand ${label}`}
             >
@@ -46,8 +46,8 @@ const CollapsiblePanel = ({ title, body, direction, ribbonLabel, collapsed, onTo
     }
 
     return (
-        <div className="flex flex-col h-full bg-gray-50 dark:bg-slate-700 text-gray-800 dark:text-white">
-            <h2 className="flex items-center shrink-0 border-b border-gray-200 dark:border-slate-600 bg-gray-100 dark:bg-slate-800">
+        <div className="flex flex-col h-full bg-white dark:bg-slate-700 text-gray-800 dark:text-white">
+            <h2 className="flex items-center shrink-0 border-b border-gray-100 dark:border-slate-600 bg-gray-50 dark:bg-slate-700">
                 <span className="p-2 text-gray-500 dark:text-gray-300">
                     <FaDatabase />
                 </span>

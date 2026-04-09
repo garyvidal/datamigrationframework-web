@@ -20,6 +20,7 @@ import { TableFilterDialog } from "../Project/TableFilterDialog";
 import GenerateXmlModal from "../Project/GenerateXmlModal";
 import GenerateJsonModal from "../Project/GenerateJsonModal";
 import GenerateXsdModal from "../Project/GenerateXsdModal";
+import GenerateXsltModal from "../Project/GenerateXsltModal";
 import { DbTable, DbSchema, DbConnection, SchemaAnalysisRequest, analyzeSchema } from "@/services/SchemaService";
 import { ProjectData, ProjectSettings, ProjectMapping, XmlTableMapping, SyntheticJoin, saveProject } from "@/services/ProjectService";
 import SyntheticJoinDialog from "./SyntheticJoinDialog";
@@ -197,6 +198,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
     const [showGenerateModal, setShowGenerateModal] = useState(false);
     const [showGenerateJsonModal, setShowGenerateJsonModal] = useState(false);
     const [showGenerateXsdModal, setShowGenerateXsdModal] = useState(false);
+    const [showGenerateXsltModal, setShowGenerateXsltModal] = useState(false);
     const [pendingCasingUpdate, setPendingCasingUpdate] = useState<{
         settings: ProjectSettings;
         lineType: ConnectionLineType;
@@ -667,10 +669,17 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
     const RIBBON_WIDTH = 32;
 
     const { isDragging: isFileDragging, position: fileW, splitterProps: fileDragBarProps } = useResizable({
-        axis: "x", initial: 250, min: 50,
+        axis: "x",
+        initial: Number(localStorage.getItem("panelWidth_left") ?? 250),
+        min: 50,
+        onResizeEnd: ({ position }) => localStorage.setItem("panelWidth_left", String(position)),
     });
     const { isDragging: isPluginDragging, position: pluginW, splitterProps: pluginDragBarProps } = useResizable({
-        axis: "x", initial: 200, min: 50, reverse: true,
+        axis: "x",
+        initial: Number(localStorage.getItem("panelWidth_right") ?? 200),
+        min: 50,
+        reverse: true,
+        onResizeEnd: ({ position }) => localStorage.setItem("panelWidth_right", String(position)),
     });
 
     const leftPanelTitle = activeProject ? activeProject.name : "Database Schemas";
@@ -755,6 +764,7 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                             onGenerateXml={activeProject ? () => setShowGenerateModal(true) : undefined}
                             onGenerateJson={activeProject ? () => setShowGenerateJsonModal(true) : undefined}
                             onGenerateXsd={activeProject ? () => setShowGenerateXsdModal(true) : undefined}
+                            onGenerateXslt={activeProject ? () => setShowGenerateXsltModal(true) : undefined}
                             mappingType={activeProject?.mapping?.mappingType ?? 'XML'}
                             onCreateJoin={activeProject ? () => setShowJoinDialog(true) : undefined}
                             onPrint={nodes.length > 0 ? handleExportPng : undefined}
@@ -904,6 +914,14 @@ const SchemaView = ({ openProjects, activeProjectName, onProjectSelect, onProjec
                 projectId={activeProject.id}
                 projectName={activeProject.name}
                 onClose={() => setShowGenerateXsdModal(false)}
+            />
+        )}
+
+        {showGenerateXsltModal && activeProject?.id && (
+            <GenerateXsltModal
+                projectId={activeProject.id}
+                projectName={activeProject.name}
+                onClose={() => setShowGenerateXsltModal(false)}
             />
         )}
 

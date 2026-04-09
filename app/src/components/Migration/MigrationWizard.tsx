@@ -8,15 +8,17 @@ import { FaCheck, FaChevronRight, FaSpinner, FaTimes, FaExclamationTriangle, FaF
 import { getSavedConnections, SavedConnection } from '@/services/SchemaService';
 import { getSavedMarkLogicConnections, SavedMarkLogicConnection } from '@/services/MarkLogicService';
 import { getProjects, MarkLogicSecurityConfig, ProjectData } from '@/services/ProjectService';
-import { startMigrationJob, getMigrationPreview, DeploymentJob, MigrationPreview } from '@/services/MigrationService';
+import { startMigrationJob, getMigrationPreview, validateMigration, DeploymentJob, MigrationPreview, ValidationReport, ValidationCheck } from '@/services/MigrationService';
+import { FaCheckCircle, FaTimesCircle, FaExclamationCircle } from 'react-icons/fa';
 import SecurityConfigEditor from '@/components/Security/SecurityConfigEditor';
 
-type WizardStep = 'connections' | 'settings' | 'security' | 'summary';
+type WizardStep = 'connections' | 'settings' | 'security' | 'validation' | 'summary';
 
 const STEPS: { id: WizardStep; label: string }[] = [
   { id: 'connections', label: 'Connections' },
   { id: 'settings',    label: 'Path' },
   { id: 'security',    label: 'Security' },
+  { id: 'validation',  label: 'Validation' },
   { id: 'summary',     label: 'Summary' },
 ];
 
@@ -71,17 +73,27 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
 
   // Step 2 state
   const [directoryPath, setDirectoryPath] = useState('/');
+  const [transformName, setTransformName] = useState('');
+  const [transformParams, setTransformParams] = useState<Record<string, string>>({});
+  const [newParamKey, setNewParamKey] = useState('');
+  const [newParamValue, setNewParamValue] = useState('');
   const [step2Error, setStep2Error] = useState<string | null>(null);
 
   // Step 3 state — security overrides (initialised from project defaults when project is selected)
   const [securityConfig, setSecurityConfig] = useState<MarkLogicSecurityConfig>({});
 
-  // Step 4 state
+  // Step 4 — validation state
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Step 5 state
   const [preview, setPreview] = useState<MigrationPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [dryRun, setDryRun] = useState(false);
 
   useEffect(() => {
     Promise.all([getProjects(), getSavedMarkLogicConnections(), getSavedConnections()])
@@ -141,12 +153,33 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
   };
 
   const handleStep3Next = async () => {
+    setValidating(true);
+    setValidationReport(null);
+    setValidationError(null);
+    setStep('validation');
+    try {
+      const report = await validateMigration({
+        projectId: selectedProjectId,
+        sourceConnectionId: selectedSourceConnectionId,
+        marklogicConnectionId: selectedMlConnectionId,
+        directoryPath: directoryPath.trim(),
+        collections: securityConfig.collections ?? [],
+        securityConfig,
+      });
+      setValidationReport(report);
+    } catch (e) {
+      setValidationError(e instanceof Error ? e.message : 'Validation request failed');
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const handleValidationNext = async () => {
     setPreviewLoading(true);
     setPreview(null);
     setPreviewError(null);
     setStartError(null);
     setStep('summary');
-
     try {
       const result = await getMigrationPreview(selectedProjectId, selectedSourceConnectionId);
       setPreview(result);
@@ -168,6 +201,9 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
         directoryPath: directoryPath.trim(),
         collections: securityConfig.collections ?? [],
         securityConfig,
+        transformName: transformName.trim() || undefined,
+        transformParams: transformName.trim() && Object.keys(transformParams).length > 0 ? transformParams : undefined,
+        dryRun,
       });
       onStarted(job);
     } catch (e) {
@@ -334,6 +370,79 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                 </p>
               </div>
 
+              {/* Transform */}
+              <div>
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Ingest Transform <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={transformName}
+                  onChange={(e) => setTransformName(e.target.value)}
+                  placeholder="e.g. my-transform"
+                  className={inputCls}
+                />
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  Name of a server-side MarkLogic REST transform to apply on ingest.
+                </p>
+              </div>
+
+              {/* Transform params — only shown when a transform name is set */}
+              {transformName.trim() && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
+                    Transform Parameters
+                  </label>
+                  <div className="space-y-1">
+                    {Object.entries(transformParams).map(([k, v]) => (
+                      <div key={k} className="flex items-center gap-2 text-sm">
+                        <span className="flex-1 font-mono px-2 py-1 bg-gray-100 dark:bg-slate-600 rounded text-gray-700 dark:text-gray-200 truncate">{k}</span>
+                        <span className="text-gray-400">=</span>
+                        <span className="flex-1 font-mono px-2 py-1 bg-gray-100 dark:bg-slate-600 rounded text-gray-700 dark:text-gray-200 truncate">{v}</span>
+                        <button
+                          onClick={() => setTransformParams(p => { const n = { ...p }; delete n[k]; return n; })}
+                          className="text-gray-400 hover:text-red-500 transition shrink-0"
+                          title="Remove"
+                        >&times;</button>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newParamKey}
+                        onChange={(e) => setNewParamKey(e.target.value)}
+                        placeholder="param name"
+                        className="flex-1 px-2 py-1 text-sm bg-white dark:bg-slate-600 text-gray-800 dark:text-white border border-gray-300 dark:border-slate-500 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <span className="text-gray-400 text-sm">=</span>
+                      <input
+                        type="text"
+                        value={newParamValue}
+                        onChange={(e) => setNewParamValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newParamKey.trim()) {
+                            setTransformParams(p => ({ ...p, [newParamKey.trim()]: newParamValue }));
+                            setNewParamKey(''); setNewParamValue('');
+                          }
+                        }}
+                        placeholder="value"
+                        className="flex-1 px-2 py-1 text-sm bg-white dark:bg-slate-600 text-gray-800 dark:text-white border border-gray-300 dark:border-slate-500 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        onClick={() => {
+                          if (newParamKey.trim()) {
+                            setTransformParams(p => ({ ...p, [newParamKey.trim()]: newParamValue }));
+                            setNewParamKey(''); setNewParamValue('');
+                          }
+                        }}
+                        disabled={!newParamKey.trim()}
+                        className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded disabled:opacity-40 transition shrink-0"
+                      >Add</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Summary */}
               <div className="bg-gray-50 dark:bg-slate-700 rounded p-4 space-y-2 border border-gray-200 dark:border-transparent text-sm">
                 <div className="flex justify-between">
@@ -371,7 +480,74 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
             </div>
           )}
 
-          {/* ── STEP 4: Summary ── */}
+          {/* ── STEP 4: Validation ── */}
+          {step === 'validation' && (
+            <div className="space-y-4">
+              {validating && (
+                <div className="flex items-center justify-center py-12 gap-3 text-gray-400">
+                  <FaSpinner className="animate-spin" />
+                  <span>Running pre-flight checks...</span>
+                </div>
+              )}
+
+              {validationError && !validating && (
+                <div className="flex items-start gap-2 p-3 bg-yellow-900/40 border border-yellow-700 rounded text-sm text-yellow-200">
+                  <FaExclamationTriangle className="mt-0.5 shrink-0" size={13} />
+                  <span>Validation request failed: {validationError}. You may still proceed.</span>
+                </div>
+              )}
+
+              {validationReport && !validating && (
+                <>
+                  <div className="rounded border border-gray-200 dark:border-slate-600 overflow-hidden">
+                    {(['CONNECTIVITY', 'MAPPING', 'SECURITY'] as const).map(category => {
+                      const checks = validationReport.checks.filter(c => c.category === category);
+                      if (checks.length === 0) return null;
+                      return (
+                        <div key={category}>
+                          <div className="px-3 py-1.5 bg-gray-100 dark:bg-slate-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            {category}
+                          </div>
+                          {checks.map((check: ValidationCheck) => (
+                            <div key={check.checkId} className="flex items-start gap-3 px-3 py-2.5 border-t border-gray-100 dark:border-slate-600 bg-white dark:bg-slate-800">
+                              <div className="mt-0.5 shrink-0">
+                                {check.status === 'PASS' && <FaCheckCircle className="text-green-500" size={14} />}
+                                {check.status === 'WARN' && <FaExclamationCircle className="text-amber-400" size={14} />}
+                                {check.status === 'FAIL' && <FaTimesCircle className="text-red-500" size={14} />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm text-gray-800 dark:text-white">{check.label}</span>
+                                {check.detail && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate" title={check.detail}>{check.detail}</p>
+                                )}
+                                {check.hint && check.status !== 'PASS' && (
+                                  <p className="text-xs text-blue-500 dark:text-blue-400 mt-0.5">{check.hint}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {validationReport.canProceed ? (
+                    <div className={`p-3 rounded text-sm font-medium ${validationReport.hasWarnings ? 'bg-amber-900/30 border border-amber-700 text-amber-200' : 'bg-green-900/30 border border-green-700 text-green-200'}`}>
+                      {validationReport.hasWarnings
+                        ? 'Checks passed with warnings — review before proceeding.'
+                        : 'All checks passed — ready to migrate.'}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded text-sm font-medium bg-red-900/30 border border-red-700 text-red-200">
+                      One or more checks failed — fix the issues above before proceeding.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── STEP 5: Summary ── */}
           {step === 'summary' && (
             <div className="space-y-4">
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -473,6 +649,30 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                 </div>
               )}
 
+              {/* Transform summary */}
+              {transformName.trim() && (
+                <div className="p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded text-sm text-purple-700 dark:text-purple-300 space-y-1">
+                  <p className="font-medium">Ingest transform: <span className="font-mono">{transformName.trim()}</span></p>
+                  {Object.keys(transformParams).length > 0 && (
+                    <p className="text-xs">{Object.keys(transformParams).length} parameter(s): {Object.entries(transformParams).map(([k, v]) => `${k}=${v}`).join(', ')}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Dry run toggle */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700 rounded border border-gray-200 dark:border-slate-600">
+                <input
+                  type="checkbox"
+                  id="dryRunCheck"
+                  checked={dryRun}
+                  onChange={(e) => setDryRun(e.target.checked)}
+                  className="w-4 h-4 accent-blue-600"
+                />
+                <label htmlFor="dryRunCheck" className="text-sm text-gray-700 dark:text-gray-200 cursor-pointer select-none">
+                  Dry run — count documents only, do not write to MarkLogic
+                </label>
+              </div>
+
               {startError && (
                 <div className="p-3 bg-red-900 border border-red-700 rounded text-sm text-red-100">{startError}</div>
               )}
@@ -484,36 +684,28 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-slate-700 mt-2">
           <div>
             {step === 'settings' && (
-              <button
-                onClick={() => setStep('connections')}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500"
-              >
+              <button onClick={() => setStep('connections')} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500">
                 Back
               </button>
             )}
             {step === 'security' && (
-              <button
-                onClick={() => setStep('settings')}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500"
-              >
+              <button onClick={() => setStep('settings')} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500">
+                Back
+              </button>
+            )}
+            {step === 'validation' && (
+              <button onClick={() => setStep('security')} disabled={validating} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed">
                 Back
               </button>
             )}
             {step === 'summary' && (
-              <button
-                onClick={() => setStep('security')}
-                disabled={starting}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={() => setStep('validation')} disabled={starting} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed">
                 Back
               </button>
             )}
           </div>
           <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500"
-            >
+            <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500">
               Cancel
             </button>
             {step === 'connections' && (
@@ -535,9 +727,15 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
               </button>
             )}
             {step === 'security' && (
+              <button onClick={handleStep3Next} className="px-5 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium">
+                Next
+              </button>
+            )}
+            {step === 'validation' && (
               <button
-                onClick={handleStep3Next}
-                className="px-5 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+                onClick={handleValidationNext}
+                disabled={validating || (validationReport != null && !validationReport.canProceed)}
+                className="px-5 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
               >
                 Next
               </button>
@@ -548,7 +746,7 @@ const MigrationWizard: React.FC<MigrationWizardProps> = ({ onClose, onStarted })
                 disabled={starting || previewLoading}
                 className="px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2"
               >
-                {starting ? <><FaSpinner className="animate-spin" size={13} /> Starting...</> : 'Start Migration'}
+                {starting ? <><FaSpinner className="animate-spin" size={13} /> Starting...</> : dryRun ? 'Start Dry Run' : 'Start Migration'}
               </button>
             )}
           </div>

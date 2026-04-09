@@ -1,16 +1,25 @@
 .drag-bar {
     flex-shrink: 0;
     width: 5px;
-    background-color: slategray;
+    background-color: #ffffff; /* white — matches light panel background */
     cursor: col-resize;
     transition: background-color 0.15s 0.15s ease-in-out;
   }
-  
-  .drag-bar.drag-bar--dragging,
-  .drag-bar:hover{
-    background-color: slategrey;
+
+  .dark .drag-bar {
+    background-color: #1e293b; /* slate-800 — matches dark panel background */
   }
-  
+
+  .drag-bar.drag-bar--dragging,
+  .drag-bar:hover {
+    background-color: #d1d5db; /* gray-300 — subtle highlight on hover */
+  }
+
+  .dark .drag-bar.drag-bar--dragging,
+  .dark .drag-bar:hover {
+    background-color: #334155; /* slate-700 — subtle highlight on hover (dark) */
+  }
+
   .drag-bar.drag-bar--horizontal {
     height: 5px;
     width: 100%;
